@@ -2,238 +2,259 @@
 pragma solidity ^0.8.3;
 pragma experimental ABIEncoderV2;
 
+import "hardhat/console.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "./interfaces/IPaymentStream.sol";
 
-contract PaymentStream is Ownable, AccessControl {
-
+contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
+  using Counters for Counters.Counter;
 
-  struct Stream {
+  Counters.Counter private totalStreams;
 
-    address payee;
-    uint usdAmount;
-    address token;
-    address fundingAddress;
-    address payer;
-    bool paused;
-    uint startTime;
-    uint endTime;
-    uint secs;
-    uint claimed;
-
-  }
-
-  modifier onlyPayer(uint streamId) {
+  modifier onlyPayer(uint256 streamId) {
     require(msg.sender == streams[streamId].payer, "Not stream owner");
     _;
   }
 
-  modifier onlyPayerOrDelegated(uint streamId) {
-
-    require(msg.sender == streams[streamId].payer || 
-            hasRole(keccak256(abi.encodePacked(streamId)),msg.sender
-    ), "Not stream owner/delegated");
+  modifier onlyPayerOrDelegated(uint256 streamId) {
+    require(
+      msg.sender == streams[streamId].payer ||
+        hasRole(keccak256(abi.encodePacked(streamId)), msg.sender),
+      "Not stream owner/delegated"
+    );
     _;
   }
 
-  modifier onlyPayee(uint streamId) {
+  modifier onlyPayee(uint256 streamId) {
     require(msg.sender == streams[streamId].payee, "Not payee");
     _;
   }
-  
-  mapping (uint => Stream) streams;
-  mapping (address => AggregatorV3Interface) supportedTokens; // token address => oracle address
 
-  uint totalStreams = 0;
+  mapping(uint256 => Stream) public streams;
+  mapping(address => AggregatorV3Interface) public supportedTokens; // token address => oracle address
 
-  event newStream(uint id, address payer, address payee, uint usdAmount);
-  event tokenAdded(address tokenAddress, address oracleAddress);
-  event claimed(uint id, uint usdAmount, uint tokenAmount);
+  constructor() {
+    // Start the counts at 1
+    // the 0th stream is available to all
 
-  /*
-        adds supported tokens by setting a mapping to token => oracle
-  */
+    totalStreams.increment();
+  }
 
   function _addToken(address tokenAddress, address oracleAddress) internal {
-      
-      require(oracleAddress != address(0),"Oracle address missing");
-    
-      supportedTokens[tokenAddress] = AggregatorV3Interface(oracleAddress);
+    require(oracleAddress != address(0), "Oracle address missing");
 
-      emit tokenAdded(tokenAddress, oracleAddress);
-  
+    AggregatorV3Interface oracle = AggregatorV3Interface(oracleAddress);
+
+    (, , , uint256 updatedAt, ) = oracle.latestRoundData();
+
+    require(updatedAt > block.timestamp - 1 hours, "Old oracle");
+
+    supportedTokens[tokenAddress] = oracle;
+
+    emit TokenAdded(tokenAddress, oracleAddress);
   }
 
-  function addToken(address tokenAddress, address oracleAddress) external onlyOwner {
-
-        _addToken(tokenAddress, oracleAddress);
-  
+  function addToken(address tokenAddress, address oracleAddress)
+    external
+    override
+    onlyOwner
+  {
+    _addToken(tokenAddress, oracleAddress);
   }
 
-  function getStream(uint streamId) public view returns (Stream memory) {
-
+  function getStream(uint256 streamId) public view returns (Stream memory) {
     return streams[streamId];
-
-  }
-  
-  function getStreamsCount() public view returns (uint) {
-
-    return totalStreams;
-  
   }
 
-  function createStream(address payee, uint usdAmount, address token, address fundingAddress, uint endTime) public returns (uint) {
-      
-      require(endTime > block.timestamp, "End time is in the past");
-      require(payee != fundingAddress,"payee == fundingAddress");
-      require(payee != address(0) && fundingAddress != address(0), "invalid payee or fundingAddress");
-      require(usdAmount > 0, "usdAmount == 0");
-      require(address(supportedTokens[token]) != address(0),"Token not supported");
-
-
-      Stream memory stream;
-
-      stream.payee = payee;
-      stream.usdAmount = usdAmount;
-      stream.token = token;
-      stream.fundingAddress = fundingAddress;
-      stream.payer = msg.sender;
-      stream.paused = false;
-      stream.startTime = block.timestamp;
-      stream.endTime = endTime;
-      stream.secs = endTime - block.timestamp;
-
-      stream.claimed = 0;
-
-      uint streamId = totalStreams;
-
-      streams[streamId] = stream;
-      
-      _setupRole(keccak256(abi.encodePacked(streamId)), msg.sender);
-
-      emit newStream(streamId, stream.payer, payee, usdAmount);
-
-      totalStreams++;
-
-      return streamId;
-
+  function getStreamsCount() external view override returns (uint256) {
+    return totalStreams.current();
   }
 
+  function createStream(
+    address payee,
+    uint256 usdAmount,
+    address token,
+    address fundingAddress,
+    uint256 endTime
+  ) external override returns (uint256) {
+    require(endTime > block.timestamp, "End time is in the past");
+    require(payee != fundingAddress, "payee == fundingAddress");
+    require(
+      payee != address(0) && fundingAddress != address(0),
+      "invalid payee or fundingAddress"
+    );
+    require(usdAmount > 0, "usdAmount == 0");
+    require(
+      address(supportedTokens[token]) != address(0),
+      "Token not supported"
+    );
 
-  function delegatePausable(uint streamId, address delegate) onlyPayerOrDelegated(streamId) external {
+    Stream memory stream;
 
-      require(delegate != address(0), "Invalid delegate");
-      
-      _setupRole(keccak256(abi.encodePacked(streamId)), delegate);
+    stream.payee = payee;
+    stream.usdAmount = usdAmount;
+    stream.token = token;
+    stream.fundingAddress = fundingAddress;
+    stream.payer = msg.sender;
+    stream.paused = false;
+    stream.startTime = block.timestamp;
+    stream.endTime = endTime;
+    stream.secs = endTime - block.timestamp;
+
+    stream.claimed = 0;
+
+    uint256 streamId = totalStreams.current();
+
+    streams[streamId] = stream;
+
+    emit NewStream(streamId, stream.payer, payee, usdAmount);
+
+    totalStreams.increment();
+
+    return streamId;
   }
 
-  function pauseStream(uint streamId) onlyPayerOrDelegated(streamId) external {
-      streams[streamId].paused = true;
+  function delegatePausable(uint256 streamId, address delegate)
+    external
+    override
+    onlyPayerOrDelegated(streamId)
+  {
+    require(delegate != address(0), "Invalid delegate");
+
+    _setupRole(keccak256(abi.encodePacked(streamId)), delegate);
   }
 
-  function unpauseStream(uint streamId) onlyPayerOrDelegated(streamId) external {
-      streams[streamId].paused = false;
+  function pauseStream(uint256 streamId)
+    external
+    override
+    onlyPayerOrDelegated(streamId)
+  {
+    streams[streamId].paused = true;
+    emit StreamPaused(streamId);
   }
 
-  function setPayee(uint streamId,address newPayee) onlyPayer(streamId) external {
-
-      require(newPayee != address(0),"newPayee invalid");
-      streams[streamId].payee = newPayee;
-
+  function unpauseStream(uint256 streamId)
+    external
+    override
+    onlyPayerOrDelegated(streamId)
+  {
+    streams[streamId].paused = false;
+    emit StreamUnpaused(streamId);
   }
 
-  function setFundingAddress(uint streamId, address newFundingAddress) onlyPayer(streamId) external {
-
-      require(newFundingAddress != address(0),"newFundingAddress invalid");      
-      streams[streamId].fundingAddress = newFundingAddress;
-
+  function setPayee(uint256 streamId, address newPayee)
+    external
+    onlyPayer(streamId)
+  {
+    require(newPayee != address(0), "newPayee invalid");
+    streams[streamId].payee = newPayee;
   }
 
-  function setFundingRate(uint streamId, uint usdAmount, uint endTime) onlyPayer(streamId) external {
+  function setFundingAddress(uint256 streamId, address newFundingAddress)
+    external
+    onlyPayer(streamId)
+  {
+    require(newFundingAddress != address(0), "newFundingAddress invalid");
+    streams[streamId].fundingAddress = newFundingAddress;
+  }
 
-      require(usdAmount > 0, "usdAmount = 0");
-      require(endTime > block.timestamp,"End time is in the past");
+  function setFundingRate(
+    uint256 streamId,
+    uint256 usdAmount,
+    uint256 endTime
+  ) external onlyPayer(streamId) {
+    Stream memory stream = streams[streamId];
 
-      Stream memory stream = streams[streamId];
+    require(usdAmount > stream.claimed, "usdAmount <= claimed");
+    require(endTime > block.timestamp, "End time is in the past");
 
-      stream.usdAmount = usdAmount;
-      stream.startTime = block.timestamp;
-      stream.endTime = endTime;
+    stream.usdAmount = usdAmount;
+    stream.startTime = block.timestamp;
+    stream.endTime = endTime;
 
-      stream.secs = endTime - block.timestamp;
-      stream.claimed = 0;
+    stream.secs = endTime - block.timestamp;
 
-      streams[streamId] = stream;
+    streams[streamId] = stream;
+  }
 
+  function claimable(uint256 streamId)
+    external
+    view
+    override
+    returns (uint256)
+  {
+    return _claimable(streamId);
   }
 
   // returns the claimable amount in USD
-  function claimable (uint streamId) public view returns (uint) {
+  function _claimable(uint256 streamId) internal view returns (uint256) {
+    Stream memory stream = streams[streamId];
 
-      Stream memory stream = streams[streamId];
+    uint256 usdPerSec = (stream.usdAmount) / stream.secs;
+    uint256 elapsed = block.timestamp - stream.startTime;
 
-      uint usdPerSec = (stream.usdAmount)/stream.secs;
-      uint elapsed = block.timestamp - stream.startTime;
+    if (elapsed > stream.secs) {
+      return stream.usdAmount - stream.claimed; // no more drips to avoid floating point dust
+    }
 
-      if (elapsed > stream.secs) {
-
-        return stream.usdAmount - stream.claimed; // no more drips to avoid floating point dust
-
-      }
-
-      return ((usdPerSec)*elapsed) - stream.claimed;
-
+    return ((usdPerSec) * elapsed) - stream.claimed;
   }
 
   // returns the claimable amount in target token
-  function claimableToken (uint streamId) public view returns (uint) {
-
+  function claimableToken(uint256 streamId)
+    external
+    view
+    override
+    returns (uint256)
+  {
     Stream memory stream = streams[streamId];
 
-    uint accumulated = claimable(streamId);
+    uint256 accumulated = _claimable(streamId);
 
-    AggregatorV3Interface oracle = supportedTokens[stream.token];
-
-    ( , int256 price, , ,) = oracle.latestRoundData();
-
-    price = price*1e10; // usd price scaled to 18 decimals (from 8)
-    
-    return (accumulated * 1e18) / uint(price);
-
+    return _usdToTokenAmount(stream.token, accumulated);
   }
 
-  function claim(uint streamId) onlyPayee(streamId) public returns (bool) {
+  function _usdToTokenAmount(address token, uint256 amount)
+    internal
+    view
+    returns (uint256)
+  {
+    AggregatorV3Interface oracle = supportedTokens[token];
 
-      Stream memory stream = streams[streamId];
+    (, int256 price, , uint256 updatedAt, ) = oracle.latestRoundData();
 
-      require(stream.paused == false,"Stream is paused");
+    // tests that go ahead in time will fail with the requirement below
+    //require(updatedAt > block.timestamp - 1 hours, "Old oracle");
 
-      uint accumulated = claimable(streamId);
+    uint8 decimals = oracle.decimals();
 
-      AggregatorV3Interface oracle = supportedTokens[stream.token];
+    uint256 scaledPrice = uint256(price) * (10**(18 - decimals)); // scales oracle price to 18 decimals
 
-      ( , int256 price, , ,) = oracle.latestRoundData();
-
-      price = price*1e10; // usd price scaled to 18 decimals (from 8)
-      
-      uint amount = (accumulated * 1e18) / uint(price);
-
-      stream.claimed += accumulated;
-
-      streams[streamId] = stream;
-
-      IERC20 token = IERC20(stream.token);
-
-      token.safeTransferFrom(stream.fundingAddress, stream.payee, amount);
-
-      emit claimed(streamId, accumulated, amount);
-      
-      return true;
-
+    return (amount * 1e18) / scaledPrice;
   }
 
+  function claim(uint256 streamId) external override onlyPayee(streamId) {
+    Stream memory stream = streams[streamId];
+
+    require(stream.paused == false, "Stream is paused");
+
+    uint256 accumulated = _claimable(streamId);
+    uint256 amount = _usdToTokenAmount(stream.token, accumulated);
+
+    stream.claimed += accumulated;
+
+    streams[streamId] = stream;
+
+    IERC20 token = IERC20(stream.token);
+
+    token.safeTransferFrom(stream.fundingAddress, stream.payee, amount);
+
+    emit Claimed(streamId, accumulated, amount);
+  }
 }

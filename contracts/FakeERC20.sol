@@ -8,11 +8,7 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract FakeERC20 is ERC20 {
-
-    constructor(uint256 initialSupply) ERC20("WETH", "Wrapped Ether") {
-        
-        _mint(msg.sender, initialSupply);
-    
-    }
-
+  constructor(uint256 initialSupply) ERC20("WETH", "Wrapped Ether") {
+    _mint(msg.sender, initialSupply);
+  }
 }

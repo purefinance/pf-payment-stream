@@ -1,227 +1,228 @@
-const { expect } = require("chai");
-const { ethToUsd } = require("../utils/misc");
+'use strict'
 
-const oracleAddress = "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419" // ETH/USD Chainlink oracle
+const { expect } = require('chai')
+const { ethToUsd } = require('../utils/misc')
+const { ethers, network } = require('hardhat')
 
-describe("PaymentStream", function() {
+const oracleAddress = '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419' // ETH/USD Chainlink oracle
+const usdAmount = ethers.utils.parseEther('100000')
+const streamId = 1
 
-  let paymentStream;
-  let usdAmount = ethers.utils.parseEther("100000");
-  let fakeToken;
+describe('PaymentStream', function() {
+
+  let paymentStream
+  let fakeToken
 
   before(async function() {
 
-    const FakeERC20 = await ethers.getContractFactory("FakeERC20");
-    fakeToken = await FakeERC20.deploy(ethers.utils.parseEther("1000000"));
+    const FakeERC20 = await ethers.getContractFactory('FakeERC20')
+    fakeToken = await FakeERC20.deploy(ethers.utils.parseEther('1000000'))
     
-    const PaymentStream = await ethers.getContractFactory("PaymentStream");
-    paymentStream = await PaymentStream.deploy();
+    const PaymentStream = await ethers.getContractFactory('PaymentStream')
+    paymentStream = await PaymentStream.deploy()
 
-    await Promise.all[ fakeToken.deployed(), paymentStream.deployed() ];
+    await Promise.all([ fakeToken.deployed(), paymentStream.deployed() ])
 
-    await paymentStream.addToken(fakeToken.address, oracleAddress);
+    await paymentStream.addToken(fakeToken.address, oracleAddress)
     
-  });
+  })
 
-  it("Should create first stream and expect stream id: 0", async function() {
+  it('Should create first stream and expect stream id: 1', async function() {
 
     // to keep things simple fundingAddress will be == payer for testing purposes
 
-    const [ fundingAddress, payee ] = await ethers.getSigners();
+    const [ fundingAddress, payee ] = await ethers.getSigners()
 
-    let blockInfo = await ethers.provider.getBlock("latest");
+    const blockInfo = await ethers.provider.getBlock('latest')
 
-    let createStreamTx = await paymentStream.createStream(
+    const createStreamTx = await paymentStream.createStream(
                     payee.address, 
                     usdAmount, // usdAmount scaled up to 18 decimals
                     fakeToken.address, 
                     fundingAddress.address, 
                     blockInfo.timestamp + (86400 * 365) // 1 year
-    );
+    )
 
-    let { events } = await createStreamTx.wait();
+    const { events } = await createStreamTx.wait()
 
-    const event = events.find(event => event.event === 'newStream');
+    const event = events.find(newEvent => newEvent.event === 'NewStream')
 
-    expect(event.args.id).to.equal(0);
+    expect(event.args.id).to.equal(streamId)
   
-  });
+  })
 
-  it("Should get stream 0", async function () {
+  it('Should get stream 1', async function () {
 
-    let stream = await paymentStream.getStream(0);
+    const stream = await paymentStream.getStream(streamId)
 
-    const [ fundingAddress, payee ] = await ethers.getSigners();
+    const [ fundingAddress, payee ] = await ethers.getSigners()
 
-    expect(stream.fundingAddress).to.equal(fundingAddress.address);
-    expect(stream.payee).to.equal(payee.address);
+    expect(stream.fundingAddress).to.equal(fundingAddress.address)
+    expect(stream.payee).to.equal(payee.address)
     
-  });
+  })
 
-  it("Should get streams count and be 1", async function () {
+  it('Should get streams count and be 2', async function () {
 
-    let streamsCount = await paymentStream.getStreamsCount();
+    const streamsCount = await paymentStream.getStreamsCount()
 
-    expect(streamsCount).to.equal(1);
+    expect(streamsCount).to.equal(2)
     
-  });
+  })
 
   it("Payer should set new funding address to 'thirdGuy' and then back to 'fundingAddress'", async function () {
 
-    const [ fundingAddress, , thirdGuy ] = await ethers.getSigners();
+    const [ fundingAddress, , thirdGuy ] = await ethers.getSigners()
 
-    await paymentStream.setFundingAddress(0,thirdGuy.address);
+    await paymentStream.setFundingAddress(streamId,thirdGuy.address)
 
-    let streamInfo = await paymentStream.getStream(0);
+    const streamInfo = await paymentStream.getStream(streamId)
 
-    expect(streamInfo.fundingAddress).to.equal(thirdGuy.address);
+    expect(streamInfo.fundingAddress).to.equal(thirdGuy.address)
 
-    await paymentStream.setFundingAddress(0,fundingAddress.address);
+    await paymentStream.setFundingAddress(streamId,fundingAddress.address)
 
+  })
+
+  it('Random person should fail to set new funding address (not the owner)', async function () {
+
+    const [ , , , randomPerson ] = await ethers.getSigners()
+
+    const rpPaymentStream = await paymentStream.connect(randomPerson)
+
+    expect(rpPaymentStream.setFundingAddress(streamId,randomPerson.address)).to.be.revertedWith('Not stream owner')
     
-  });
-
-  it("Random person should fail to set new funding address (not the owner)", async function () {
-
-    const [ fundingAddress, payee, thirdGuy, randomPerson ] = await ethers.getSigners();
-
-    let rpPaymentStream = await paymentStream.connect(randomPerson);
-
-    expect(rpPaymentStream.setFundingAddress(0,randomPerson.address)).to.be.revertedWith("Not stream owner");
     
-    
-  });
+  })
 
-  it("Should return the correct claimable amount", async function () {
+  it('Should return the correct claimable amount', async function () {
 
 
-    await network.provider.send("evm_increaseTime", [86400]); // +1 day
-    await network.provider.send("evm_mine");
+    await network.provider.send('evm_increaseTime', [86400]) // +1 day
+    await network.provider.send('evm_mine')
 
-    let claimable = await paymentStream.claimable(0);
-    let claimableToken = await paymentStream.claimableToken(0);
-    let afterOneDay = usdAmount.div(365);
+    const claimable = await paymentStream.claimable(streamId)
+    const claimableToken = await paymentStream.claimableToken(streamId)
+    const afterOneDay = usdAmount.div(365)
 
-    expect(claimable.gte(afterOneDay)).to.equal(true);
+    expect(claimable.gte(afterOneDay)).to.equal(true)
 
     /* 
         Checks if on-chain token amount is in line with the off-chain usd value
     */
     
-    let offchainUsdValue = await ethToUsd(claimableToken);
+    const offchainUsdValue = await ethToUsd(claimableToken)
 
-    let offchainUsdValueFloor = offchainUsdValue.mul(95).div(100);
-    let offchainUsdValueCeiling = offchainUsdValue.mul(105).div(100);
+    const offchainUsdValueFloor = offchainUsdValue.mul(95).div(100)
+    const offchainUsdValueCeiling = offchainUsdValue.mul(105).div(100)
 
-    expect(claimable.gte(offchainUsdValueFloor)).to.equal(true); // -5%
-    expect(claimable.lte(offchainUsdValueCeiling)).to.equal(true); // +5%
+    expect(claimable.gte(offchainUsdValueFloor)).to.equal(true) // -5%
+    expect(claimable.lte(offchainUsdValueCeiling)).to.equal(true) // +5%
 
-  });
+  })
 
 
-  it("fundingAddress approves PaymentStream as spender", async function () {
+  it('fundingAddress approves PaymentStream as spender', async function () {
 
-    fakeToken.approve(paymentStream.address,ethers.utils.parseEther("10000"));
+    fakeToken.approve(paymentStream.address,ethers.utils.parseEther('10000'))
 
-  });  
+  })  
 
-  it("Payee claims his first drip", async function () {
+  it('Payee claims his first drip', async function () {
 
-    const [ fundingAddress, payee ] = await ethers.getSigners();
+    const [ , payee ] = await ethers.getSigners()
 
-    let payeePaymentStream = await paymentStream.connect(payee);
+    const payeePaymentStream = await paymentStream.connect(payee)
 
-    let initialBalance = await fakeToken.balanceOf(payee.address);
+    const initialBalance = await fakeToken.balanceOf(payee.address)
 
-    await payeePaymentStream.claim(0);
+    await payeePaymentStream.claim(streamId)
 
-    let afterBalance = await fakeToken.balanceOf(payee.address);
+    const afterBalance = await fakeToken.balanceOf(payee.address)
 
-    expect(afterBalance.gt(initialBalance)).to.equal(true);
+    expect(afterBalance.gt(initialBalance)).to.equal(true)
 
-  });  
+  })  
 
   it("Random person shouldn't be able to pause the stream", async function () {
 
-    const [ fundingAddress, payee, thirdGuy, randomPerson ] = await ethers.getSigners();
+    const [ , , , randomPerson ] = await ethers.getSigners()
 
-    let rpPaymentStream = await paymentStream.connect(randomPerson);
+    const rpPaymentStream = await paymentStream.connect(randomPerson)
 
-    expect(rpPaymentStream.pauseStream(0)).to.be.revertedWith("Not stream owner");
+    expect(rpPaymentStream.pauseStream(streamId)).to.be.revertedWith('Not stream owner')
     
-  });
+  })
 
   it("Payer delegates 'thirdGuy' to pause/unpause stream and checks for paused = true", async function () {
 
-    const [ fundingAddress, payee, thirdGuy, randomPerson ] = await ethers.getSigners();
+    const [ , , thirdGuy ] = await ethers.getSigners()
 
-    await paymentStream.delegatePausable(0, thirdGuy.address);
+    await paymentStream.delegatePausable(streamId, thirdGuy.address)
 
-    let tgPaymentStream = await paymentStream.connect(thirdGuy);
+    const tgPaymentStream = await paymentStream.connect(thirdGuy)
 
-    await tgPaymentStream.pauseStream(0);
+    await tgPaymentStream.pauseStream(streamId)
 
-    let streamInfo = await tgPaymentStream.getStream(0);
+    const streamInfo = await tgPaymentStream.getStream(streamId)
 
-    expect(streamInfo.paused).to.equal(true);
+    expect(streamInfo.paused).to.equal(true)
 
-  });
+  })
 
-  it("Unpause stream", async function () {
+  it('Unpause stream', async function () {
 
-    const [ fundingAddress, payee, thirdGuy, randomPerson ] = await ethers.getSigners();
+    const [ , , thirdGuy,  ] = await ethers.getSigners()
 
-    let tgPaymentStream = await paymentStream.connect(thirdGuy);
+    const tgPaymentStream = await paymentStream.connect(thirdGuy)
 
-    await tgPaymentStream.unpauseStream(0);
+    await tgPaymentStream.unpauseStream(streamId)
 
-    let streamInfo = await tgPaymentStream.getStream(0);
+    const streamInfo = await tgPaymentStream.getStream(streamId)
 
-    expect(streamInfo.paused).to.equal(false);
+    expect(streamInfo.paused).to.equal(false)
 
-  });  
-
-
-  it("Sets the new payee", async function () {
-
-    const [ fundingAddress, payee, thirdGuy, randomPerson, newPayee ] = await ethers.getSigners();
-
-    await paymentStream.setPayee(0,newPayee.address);
-
-    let streamInfo = await paymentStream.getStream(0);
-
-    expect(streamInfo.payee).to.equal(newPayee.address);
-
-  });
-
-  it("Sets new funding rate", async function () {
-
-    const [ fundingAddress, payee, thirdGuy, randomPerson, newPayee ] = await ethers.getSigners();
-
-    let blockInfo = await ethers.provider.getBlock("latest");
-    let deadline = blockInfo.timestamp + (86400 * 7); // 7 days from now
-
-    await paymentStream.setFundingRate(0,usdAmount,deadline);
-
-    let streamInfo = await paymentStream.getStream(0);
-
-    expect(streamInfo.endTime).to.equal(deadline);
-
-  });
-
-  it("Payee should be able to claim the full amount after the deadline is expired", async function () {
+  })  
 
 
-    await network.provider.send("evm_increaseTime", [86400 * 8]); // +8 day
-    await network.provider.send("evm_mine");
+  it('Sets the new payee', async function () {
 
-    let streamInfo = await paymentStream.getStream(0);
-    let claimable = await paymentStream.claimable(0);
+    const [ , , , , newPayee ] = await ethers.getSigners()
 
-    let expectedClaimable = streamInfo.usdAmount.sub(streamInfo.claimed);
+    await paymentStream.setPayee(streamId,newPayee.address)
 
-    expect(expectedClaimable).to.equal(claimable);
+    const streamInfo = await paymentStream.getStream(streamId)
 
-  });
+    expect(streamInfo.payee).to.equal(newPayee.address)
 
-});
+  })
+
+  it('Sets new funding rate', async function () {
+
+    const blockInfo = await ethers.provider.getBlock('latest')
+    const deadline = blockInfo.timestamp + (86400 * 7) // 7 days from now
+
+    await paymentStream.setFundingRate(streamId,usdAmount,deadline)
+
+    const streamInfo = await paymentStream.getStream(streamId)
+
+    expect(streamInfo.endTime).to.equal(deadline)
+
+  })
+
+  it('Payee should be able to claim the full amount after the deadline is expired', async function () {
+
+
+    await network.provider.send('evm_increaseTime', [86400 * 8]) // +8 day
+    await network.provider.send('evm_mine')
+
+    const streamInfo = await paymentStream.getStream(streamId)
+    const claimable = await paymentStream.claimable(streamId)
+
+    const expectedClaimable = streamInfo.usdAmount.sub(streamInfo.claimed)
+
+    expect(expectedClaimable).to.equal(claimable)
+
+  })
+
+})

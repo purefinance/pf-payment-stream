@@ -7,13 +7,39 @@
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.1.0",
     "hardhat": "^2.2.0",
-    "solidity-coverage": "^0.7.16"
+    "solidity-coverage": "^0.7.16",
+    "eslint": "^7.25.0",
+    "eslint-config-bloq": "2.3.0",
+    "eslint-config-prettier": "6.9.0",
+    "eslint-config-standard": "14.1.0",
+    "eslint-plugin-import": "2.20.0",
+    "eslint-plugin-jsdoc": "20.3.1",
+    "eslint-plugin-mocha": "6.2.2",
+    "eslint-plugin-node": "11.0.0",
+    "eslint-plugin-prefer-arrow": "1.1.7",
+    "eslint-plugin-promise": "4.2.1",
+    "eslint-plugin-require-path-exists": "1.1.9",
+    "eslint-plugin-standard": "4.0.1",
+    "husky": "^6.0.0"
   },
   "dependencies": {
     "@chainlink/contracts": "^0.1.7",
     "@openzeppelin/contracts": "^4.0.0",
     "axios": "^0.21.1",
     "dotenv": "^8.2.0",
-    "hardhat-contract-sizer": "^2.0.3"
+    "eslint": "^7.25.0",
+    "hardhat-contract-sizer": "^2.0.3",
+    "husky": "^6.0.0",
+    "prettier": "^2.2.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.10",
+    "solhint": "^3.3.4",
+    "solhint-plugin-prettier": "0.0.5"
+  },
+  "scripts": {
+    "solhint": "solhint './contracts/**/*.sol'",
+    "solhint:fix": "prettier --write 'contracts/**/*.sol'",
+    "lint": "eslint ./test/*",
+    "lint:fix": "eslint --fix ./test --ext .js",
+    "prepare": "husky install"
   }
 }
