@@ -19,7 +19,8 @@
     "eslint-plugin-prefer-arrow": "1.1.7",
     "eslint-plugin-promise": "4.2.1",
     "eslint-plugin-require-path-exists": "1.1.9",
-    "eslint-plugin-standard": "4.0.1"
+    "eslint-plugin-standard": "4.0.1",
+    "husky": "^6.0.0"
   },
   "dependencies": {
     "@chainlink/contracts": "^0.1.7",
@@ -28,6 +29,7 @@
     "dotenv": "^8.2.0",
     "eslint": "^7.25.0",
     "hardhat-contract-sizer": "^2.0.3",
+    "husky": "^6.0.0",
     "prettier": "^2.2.1",
     "prettier-plugin-solidity": "^1.0.0-beta.10",
     "solhint": "^3.3.4",
@@ -37,6 +39,7 @@
     "solhint": "solhint './contracts/**/*.sol'",
     "solhint:fix": "prettier --write 'contracts/**/*.sol'",
     "lint": "eslint ./test/*",
-    "lint:fix": "eslint --fix ./test --ext .js"
+    "lint:fix": "eslint --fix ./test --ext .js",
+    "prepare": "husky install"
   }
 }

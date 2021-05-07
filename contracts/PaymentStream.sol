@@ -2,27 +2,20 @@
 pragma solidity ^0.8.3;
 pragma experimental ABIEncoderV2;
 
+import "hardhat/console.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "./interfaces/IPaymentStream.sol";
 
-contract PaymentStream is Ownable, AccessControl {
+contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
+  using Counters for Counters.Counter;
 
-  struct Stream {
-    address payee;
-    uint256 usdAmount;
-    address token;
-    address fundingAddress;
-    address payer;
-    bool paused;
-    uint256 startTime;
-    uint256 endTime;
-    uint256 secs;
-    uint256 claimed;
-  }
+  Counters.Counter private totalStreams;
 
   modifier onlyPayer(uint256 streamId) {
     require(msg.sender == streams[streamId].payer, "Not stream owner");
@@ -46,26 +39,30 @@ contract PaymentStream is Ownable, AccessControl {
   mapping(uint256 => Stream) public streams;
   mapping(address => AggregatorV3Interface) public supportedTokens; // token address => oracle address
 
-  uint256 public totalStreams = 0;
+  constructor() {
+    // Start the counts at 1
+    // the 0th stream is available to all
 
-  event newStream(uint256 id, address payer, address payee, uint256 usdAmount);
-  event tokenAdded(address tokenAddress, address oracleAddress);
-  event claimed(uint256 id, uint256 usdAmount, uint256 tokenAmount);
-
-  /*
-        adds supported tokens by setting a mapping to token => oracle
-  */
+    totalStreams.increment();
+  }
 
   function _addToken(address tokenAddress, address oracleAddress) internal {
     require(oracleAddress != address(0), "Oracle address missing");
 
-    supportedTokens[tokenAddress] = AggregatorV3Interface(oracleAddress);
+    AggregatorV3Interface oracle = AggregatorV3Interface(oracleAddress);
 
-    emit tokenAdded(tokenAddress, oracleAddress);
+    (, , , uint256 updatedAt, ) = oracle.latestRoundData();
+
+    require(updatedAt > block.timestamp - 1 hours, "Old oracle");
+
+    supportedTokens[tokenAddress] = oracle;
+
+    emit TokenAdded(tokenAddress, oracleAddress);
   }
 
   function addToken(address tokenAddress, address oracleAddress)
     external
+    override
     onlyOwner
   {
     _addToken(tokenAddress, oracleAddress);
@@ -75,8 +72,8 @@ contract PaymentStream is Ownable, AccessControl {
     return streams[streamId];
   }
 
-  function getStreamsCount() public view returns (uint256) {
-    return totalStreams;
+  function getStreamsCount() external view override returns (uint256) {
+    return totalStreams.current();
   }
 
   function createStream(
@@ -85,7 +82,7 @@ contract PaymentStream is Ownable, AccessControl {
     address token,
     address fundingAddress,
     uint256 endTime
-  ) public returns (uint256) {
+  ) external override returns (uint256) {
     require(endTime > block.timestamp, "End time is in the past");
     require(payee != fundingAddress, "payee == fundingAddress");
     require(
@@ -112,21 +109,20 @@ contract PaymentStream is Ownable, AccessControl {
 
     stream.claimed = 0;
 
-    uint256 streamId = totalStreams;
+    uint256 streamId = totalStreams.current();
 
     streams[streamId] = stream;
 
-    //_setupRole(keccak256(abi.encodePacked(streamId)), msg.sender);
+    emit NewStream(streamId, stream.payer, payee, usdAmount);
 
-    emit newStream(streamId, stream.payer, payee, usdAmount);
-
-    totalStreams++;
+    totalStreams.increment();
 
     return streamId;
   }
 
   function delegatePausable(uint256 streamId, address delegate)
     external
+    override
     onlyPayerOrDelegated(streamId)
   {
     require(delegate != address(0), "Invalid delegate");
@@ -136,16 +132,20 @@ contract PaymentStream is Ownable, AccessControl {
 
   function pauseStream(uint256 streamId)
     external
+    override
     onlyPayerOrDelegated(streamId)
   {
     streams[streamId].paused = true;
+    emit StreamPaused(streamId);
   }
 
   function unpauseStream(uint256 streamId)
     external
+    override
     onlyPayerOrDelegated(streamId)
   {
     streams[streamId].paused = false;
+    emit StreamUnpaused(streamId);
   }
 
   function setPayee(uint256 streamId, address newPayee)
@@ -169,23 +169,31 @@ contract PaymentStream is Ownable, AccessControl {
     uint256 usdAmount,
     uint256 endTime
   ) external onlyPayer(streamId) {
-    require(usdAmount > 0, "usdAmount = 0");
-    require(endTime > block.timestamp, "End time is in the past");
-
     Stream memory stream = streams[streamId];
+
+    require(usdAmount > stream.claimed, "usdAmount <= claimed");
+    require(endTime > block.timestamp, "End time is in the past");
 
     stream.usdAmount = usdAmount;
     stream.startTime = block.timestamp;
     stream.endTime = endTime;
 
     stream.secs = endTime - block.timestamp;
-    stream.claimed = 0;
 
     streams[streamId] = stream;
   }
 
+  function claimable(uint256 streamId)
+    external
+    view
+    override
+    returns (uint256)
+  {
+    return _claimable(streamId);
+  }
+
   // returns the claimable amount in USD
-  function claimable(uint256 streamId) public view returns (uint256) {
+  function _claimable(uint256 streamId) internal view returns (uint256) {
     Stream memory stream = streams[streamId];
 
     uint256 usdPerSec = (stream.usdAmount) / stream.secs;
@@ -199,34 +207,45 @@ contract PaymentStream is Ownable, AccessControl {
   }
 
   // returns the claimable amount in target token
-  function claimableToken(uint256 streamId) public view returns (uint256) {
+  function claimableToken(uint256 streamId)
+    external
+    view
+    override
+    returns (uint256)
+  {
     Stream memory stream = streams[streamId];
 
-    uint256 accumulated = claimable(streamId);
+    uint256 accumulated = _claimable(streamId);
 
-    AggregatorV3Interface oracle = supportedTokens[stream.token];
-
-    (, int256 price, , , ) = oracle.latestRoundData();
-
-    price = price * 1e10; // usd price scaled to 18 decimals (from 8)
-
-    return (accumulated * 1e18) / uint256(price);
+    return _usdToTokenAmount(stream.token, accumulated);
   }
 
-  function claim(uint256 streamId) public onlyPayee(streamId) returns (bool) {
+  function _usdToTokenAmount(address token, uint256 amount)
+    internal
+    view
+    returns (uint256)
+  {
+    AggregatorV3Interface oracle = supportedTokens[token];
+
+    (, int256 price, , uint256 updatedAt, ) = oracle.latestRoundData();
+
+    // tests that go ahead in time will fail with the requirement below
+    //require(updatedAt > block.timestamp - 1 hours, "Old oracle");
+
+    uint8 decimals = oracle.decimals();
+
+    uint256 scaledPrice = uint256(price) * (10**(18 - decimals)); // scales oracle price to 18 decimals
+
+    return (amount * 1e18) / scaledPrice;
+  }
+
+  function claim(uint256 streamId) external override onlyPayee(streamId) {
     Stream memory stream = streams[streamId];
 
     require(stream.paused == false, "Stream is paused");
 
-    uint256 accumulated = claimable(streamId);
-
-    AggregatorV3Interface oracle = supportedTokens[stream.token];
-
-    (, int256 price, , , ) = oracle.latestRoundData();
-
-    price = price * 1e10; // usd price scaled to 18 decimals (from 8)
-
-    uint256 amount = (accumulated * 1e18) / uint256(price);
+    uint256 accumulated = _claimable(streamId);
+    uint256 amount = _usdToTokenAmount(stream.token, accumulated);
 
     stream.claimed += accumulated;
 
@@ -236,8 +255,6 @@ contract PaymentStream is Ownable, AccessControl {
 
     token.safeTransferFrom(stream.fundingAddress, stream.payee, amount);
 
-    emit claimed(streamId, accumulated, amount);
-
-    return true;
+    emit Claimed(streamId, accumulated, amount);
   }
 }

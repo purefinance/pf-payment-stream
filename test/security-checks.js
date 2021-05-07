@@ -1,7 +1,7 @@
 'use strict'
 
 const { expect } = require('chai')
-const { ethers } = require('hardhat')
+const { ethers, network } = require('hardhat')
 
 const oracleAddress = '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419' // ETH/USD Chainlink oracle
 const VSP = '0x1b40183efb4dd766f11bda7a7c3ad8982e998421'
@@ -13,6 +13,15 @@ describe('Security checks', function() {
     let fakeToken
 
     before(async function() {
+
+        await network.provider.request({
+            method: 'hardhat_reset',
+            params: [{
+              forking: {
+                jsonRpcUrl: process.env.NODE_URL
+              }
+            }]
+        })
 
         const FakeERC20 = await ethers.getContractFactory('FakeERC20')
         fakeToken = await FakeERC20.deploy(ethers.utils.parseEther('1000000'))
@@ -30,7 +39,7 @@ describe('Security checks', function() {
     describe('addToken', function() {
 
         it('Invalid oracle address should revert', async function () {
-         
+
             const addTokenTx = paymentStream.addToken(VSP,ethers.constants.AddressZero)
 
             expect(addTokenTx).to.be.revertedWith('Oracle address missing')
@@ -154,7 +163,7 @@ describe('Security checks', function() {
 
             const { events } = await createStreamTx.wait()
 
-            const event = events.find(newEvent => newEvent.event === 'newStream')
+            const event = events.find(newEvent => newEvent.event === 'NewStream')
 
             streamId = event.args.id
 
@@ -208,10 +217,9 @@ describe('Security checks', function() {
 
             const { events } = await createStreamTx.wait()
 
-            const event = events.find(newEvent => newEvent.event === 'newStream')
+            const event = events.find(newEvent => newEvent.event === 'NewStream')
 
             streamId = event.args.id
-
 
         })
 
@@ -259,7 +267,7 @@ describe('Security checks', function() {
 
                 const check = paymentStream.setFundingRate(streamId,0,blockInfo.timestamp + 86400)
 
-                expect(check).to.be.revertedWith('usdAmount = 0')
+                expect(check).to.be.revertedWith('usdAmount <= claimed')
 
             })
 
