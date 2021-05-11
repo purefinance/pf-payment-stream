@@ -104,14 +104,22 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     stream.startTime = block.timestamp;
     stream.endTime = endTime;
     stream.secs = endTime - block.timestamp;
-
+    stream.usdPerSec = usdAmount / stream.secs;
     stream.claimed = 0;
 
     uint256 streamId = totalStreams.current();
 
     streams[streamId] = stream;
 
-    emit NewStream(streamId, stream.payer, payee, usdAmount);
+    bytes32 adminRole = keccak256(abi.encodePacked("admin", streamId));
+    bytes32 pausableRole = keccak256(abi.encodePacked(streamId));
+
+    // Payer is set as admin of "pausableRole", so he can grant and revoke the "pausable" role later on
+
+    _setupRole(adminRole, msg.sender);
+    _setRoleAdmin(pausableRole, adminRole);
+
+    emit NewStream(streamId, msg.sender, payee, usdAmount);
 
     totalStreams.increment();
 
@@ -121,11 +129,19 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   function delegatePausable(uint256 streamId, address delegate)
     external
     override
-    onlyPayerOrDelegated(streamId)
+    onlyPayer(streamId)
   {
     require(delegate != address(0), "Invalid delegate");
 
-    _setupRole(keccak256(abi.encodePacked(streamId)), delegate);
+    grantRole(keccak256(abi.encodePacked(streamId)), delegate);
+  }
+
+  function revokePausable(uint256 streamId, address delegate)
+    external
+    override
+    onlyPayer(streamId)
+  {
+    revokeRole(keccak256(abi.encodePacked(streamId)), delegate);
   }
 
   function pauseStream(uint256 streamId)
@@ -169,14 +185,25 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   ) external onlyPayer(streamId) {
     Stream memory stream = streams[streamId];
 
-    require(usdAmount > stream.claimed, "usdAmount <= claimed");
     require(endTime > block.timestamp, "End time is in the past");
+
+    // claims the accrued drip on behalf of the user and sets the new funding rate
+
+    uint256 accumulated = _claimable(streamId);
+    uint256 amount = _usdToTokenAmount(stream.token, accumulated);
+
+    IERC20 token = IERC20(stream.token);
+
+    token.safeTransferFrom(stream.fundingAddress, stream.payee, amount);
+
+    emit Claimed(streamId, accumulated, amount);
 
     stream.usdAmount = usdAmount;
     stream.startTime = block.timestamp;
     stream.endTime = endTime;
-
     stream.secs = endTime - block.timestamp;
+    stream.usdPerSec = usdAmount / stream.secs;
+    stream.claimed = 0;
 
     streams[streamId] = stream;
   }
@@ -194,14 +221,13 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   function _claimable(uint256 streamId) internal view returns (uint256) {
     Stream memory stream = streams[streamId];
 
-    uint256 usdPerSec = (stream.usdAmount) / stream.secs;
     uint256 elapsed = block.timestamp - stream.startTime;
 
     if (elapsed > stream.secs) {
       return stream.usdAmount - stream.claimed; // no more drips to avoid floating point dust
     }
 
-    return ((usdPerSec) * elapsed) - stream.claimed;
+    return (stream.usdPerSec * elapsed) - stream.claimed;
   }
 
   // returns the claimable amount in target token

@@ -160,6 +160,18 @@ describe('PaymentStream', function () {
     expect(streamInfo.paused).to.equal(false)
   })
 
+  it('Revokes pausable role', async function () {
+    const [, , thirdGuy] = await ethers.getSigners()
+
+    await paymentStream.revokePausable(streamId, thirdGuy.address)
+
+    const tgPaymentStream = await paymentStream.connect(thirdGuy)
+
+    expect(tgPaymentStream.pauseStream(streamId)).to.be.revertedWith(
+      'Not stream owner/delegated'
+    )
+  })
+
   it('Sets the new payee', async function () {
     const [, , , , newPayee] = await ethers.getSigners()
 
@@ -174,7 +186,19 @@ describe('PaymentStream', function () {
     const blockInfo = await ethers.provider.getBlock('latest')
     const deadline = blockInfo.timestamp + 86400 * 7 // 7 days from now
 
-    await paymentStream.setFundingRate(streamId, usdAmount, deadline)
+    const claimable = await paymentStream.claimable(streamId)
+
+    const setFundingRateTx = await paymentStream.setFundingRate(
+      streamId,
+      usdAmount,
+      deadline
+    )
+
+    const { events } = await setFundingRateTx.wait()
+
+    const event = events.find(newEvent => newEvent.event === 'Claimed')
+
+    expect(event.args.usdAmount.gte(claimable)).to.equal(true)
 
     const streamInfo = await paymentStream.getStream(streamId)
 

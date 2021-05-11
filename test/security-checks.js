@@ -232,18 +232,6 @@ describe('Security checks', function () {
     })
 
     describe('setFundingRate', function () {
-      it('usdAmount = 0 should revert', async function () {
-        const blockInfo = await ethers.provider.getBlock('latest')
-
-        const check = paymentStream.setFundingRate(
-          streamId,
-          0,
-          blockInfo.timestamp + 86400
-        )
-
-        expect(check).to.be.revertedWith('usdAmount <= claimed')
-      })
-
       it('endTime < current time should revert', async function () {
         const blockInfo = await ethers.provider.getBlock('latest')
 
