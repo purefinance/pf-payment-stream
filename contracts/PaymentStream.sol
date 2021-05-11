@@ -129,7 +129,6 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   function delegatePausable(uint256 streamId, address delegate)
     external
     override
-    onlyPayer(streamId)
   {
     require(delegate != address(0), "Invalid delegate");
 
@@ -139,7 +138,6 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   function revokePausable(uint256 streamId, address delegate)
     external
     override
-    onlyPayer(streamId)
   {
     revokeRole(keccak256(abi.encodePacked(streamId)), delegate);
   }
