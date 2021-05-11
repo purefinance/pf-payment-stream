@@ -1,7 +1,8 @@
 require("solidity-coverage");
-require('hardhat-contract-sizer');
-require("@nomiclabs/hardhat-waffle");
-require("dotenv").config();
+require('@nomiclabs/hardhat-ethers')
+require('@nomiclabs/hardhat-waffle')
+require('hardhat-contract-sizer')
+require("dotenv").config()
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -35,6 +36,11 @@ module.exports = {
         url: process.env.NODE_URL
       }
     }
+  },
+  contractSizer: {
+    alphaSort: true,
+    runOnCompile: true,
+    disambiguatePaths: false,
   }
 };
 
