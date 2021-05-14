@@ -13,7 +13,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
   using Counters for Counters.Counter;
 
-  Counters.Counter private totalStreams;
+  Counters.Counter private _totalStreams;
 
   modifier onlyPayer(uint256 streamId) {
     require(msg.sender == streams[streamId].payer, "Not stream owner");
@@ -41,17 +41,13 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     // Start the counts at 1
     // the 0th stream is available to all
 
-    totalStreams.increment();
+    _totalStreams.increment();
   }
 
   function _addToken(address tokenAddress, address oracleAddress) internal {
     require(oracleAddress != address(0), "Oracle address missing");
 
     AggregatorV3Interface oracle = AggregatorV3Interface(oracleAddress);
-
-    (, , , uint256 updatedAt, ) = oracle.latestRoundData();
-
-    require(updatedAt > block.timestamp - 1 hours, "Old oracle");
 
     supportedTokens[tokenAddress] = oracle;
 
@@ -71,7 +67,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   }
 
   function getStreamsCount() external view override returns (uint256) {
-    return totalStreams.current();
+    return _totalStreams.current();
   }
 
   function createStream(
@@ -102,12 +98,11 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     stream.payer = msg.sender;
     stream.paused = false;
     stream.startTime = block.timestamp;
-    stream.endTime = endTime;
     stream.secs = endTime - block.timestamp;
     stream.usdPerSec = usdAmount / stream.secs;
     stream.claimed = 0;
 
-    uint256 streamId = totalStreams.current();
+    uint256 streamId = _totalStreams.current();
 
     streams[streamId] = stream;
 
@@ -121,7 +116,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
 
     emit NewStream(streamId, msg.sender, payee, usdAmount);
 
-    totalStreams.increment();
+    _totalStreams.increment();
 
     return streamId;
   }
@@ -160,50 +155,54 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     emit StreamUnpaused(streamId);
   }
 
-  function setPayee(uint256 streamId, address newPayee)
+  function updatePayee(uint256 streamId, address newPayee)
     external
+    override
     onlyPayer(streamId)
   {
     require(newPayee != address(0), "newPayee invalid");
     streams[streamId].payee = newPayee;
+    emit PayeeUpdated(streamId, newPayee);
   }
 
-  function setFundingAddress(uint256 streamId, address newFundingAddress)
+  function updateFundingAddress(uint256 streamId, address newFundingAddress)
     external
+    override
     onlyPayer(streamId)
   {
     require(newFundingAddress != address(0), "newFundingAddress invalid");
     streams[streamId].fundingAddress = newFundingAddress;
+    emit FundingAddressUpdated(streamId, newFundingAddress);
   }
 
-  function setFundingRate(
+  function updateFundingRate(
     uint256 streamId,
     uint256 usdAmount,
     uint256 endTime
-  ) external onlyPayer(streamId) {
+  ) external override onlyPayer(streamId) {
     Stream memory stream = streams[streamId];
 
     require(endTime > block.timestamp, "End time is in the past");
 
-    // claims the accrued drip on behalf of the user and sets the new funding rate
-
     uint256 accumulated = _claimable(streamId);
     uint256 amount = _usdToTokenAmount(stream.token, accumulated);
 
-    IERC20 token = IERC20(stream.token);
-
-    token.safeTransferFrom(stream.fundingAddress, stream.payee, amount);
-
-    emit Claimed(streamId, accumulated, amount);
-
     stream.usdAmount = usdAmount;
     stream.startTime = block.timestamp;
-    stream.endTime = endTime;
     stream.secs = endTime - block.timestamp;
     stream.usdPerSec = usdAmount / stream.secs;
     stream.claimed = 0;
 
     streams[streamId] = stream;
+
+    IERC20(stream.token).safeTransferFrom(
+      stream.fundingAddress,
+      stream.payee,
+      amount
+    );
+
+    emit Claimed(streamId, accumulated, amount);
+    emit StreamUpdated(streamId, usdAmount, endTime);
   }
 
   function claimable(uint256 streamId)
@@ -249,10 +248,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   {
     AggregatorV3Interface oracle = supportedTokens[token];
 
-    (, int256 price, , uint256 updatedAt, ) = oracle.latestRoundData();
-
-    // tests that go ahead in time will fail with the requirement below
-    //require(updatedAt > block.timestamp - 1 hours, "Old oracle");
+    (, int256 price, , , ) = oracle.latestRoundData();
 
     uint8 decimals = oracle.decimals();
 
@@ -264,7 +260,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   function claim(uint256 streamId) external override onlyPayee(streamId) {
     Stream memory stream = streams[streamId];
 
-    require(stream.paused == false, "Stream is paused");
+    require(!stream.paused, "Stream is paused");
 
     uint256 accumulated = _claimable(streamId);
     uint256 amount = _usdToTokenAmount(stream.token, accumulated);
@@ -273,9 +269,11 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
 
     streams[streamId] = stream;
 
-    IERC20 token = IERC20(stream.token);
-
-    token.safeTransferFrom(stream.fundingAddress, stream.payee, amount);
+    IERC20(stream.token).safeTransferFrom(
+      stream.fundingAddress,
+      stream.payee,
+      amount
+    );
 
     emit Claimed(streamId, accumulated, amount);
   }

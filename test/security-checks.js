@@ -209,9 +209,9 @@ describe('Security checks', function () {
       })
     })
 
-    describe('setFundingAddress', function () {
+    describe('updateFundingAddress', function () {
       it('Setting an invalid funding address should revert', async function () {
-        const check = paymentStream.setFundingAddress(
+        const check = paymentStream.updateFundingAddress(
           streamId,
           ethers.constants.AddressZero
         )
@@ -220,9 +220,9 @@ describe('Security checks', function () {
       })
     })
 
-    describe('setPayee', function () {
+    describe('updatePayee', function () {
       it('Setting an invalid payee address should revert', async function () {
-        const check = paymentStream.setPayee(
+        const check = paymentStream.updatePayee(
           streamId,
           ethers.constants.AddressZero
         )
@@ -231,11 +231,11 @@ describe('Security checks', function () {
       })
     })
 
-    describe('setFundingRate', function () {
+    describe('updateFundingRate', function () {
       it('endTime < current time should revert', async function () {
         const blockInfo = await ethers.provider.getBlock('latest')
 
-        const check = paymentStream.setFundingRate(
+        const check = paymentStream.updateFundingRate(
           streamId,
           usdAmount,
           blockInfo.timestamp - 86400

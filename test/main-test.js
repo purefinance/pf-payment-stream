@@ -64,13 +64,13 @@ describe('PaymentStream', function () {
   it("Payer should set new funding address to 'thirdGuy' and then back to 'fundingAddress'", async function () {
     const [fundingAddress, , thirdGuy] = await ethers.getSigners()
 
-    await paymentStream.setFundingAddress(streamId, thirdGuy.address)
+    await paymentStream.updateFundingAddress(streamId, thirdGuy.address)
 
     const streamInfo = await paymentStream.getStream(streamId)
 
     expect(streamInfo.fundingAddress).to.equal(thirdGuy.address)
 
-    await paymentStream.setFundingAddress(streamId, fundingAddress.address)
+    await paymentStream.updateFundingAddress(streamId, fundingAddress.address)
   })
 
   it('Random person should fail to set new funding address (not the owner)', async function () {
@@ -79,7 +79,7 @@ describe('PaymentStream', function () {
     const rpPaymentStream = await paymentStream.connect(randomPerson)
 
     expect(
-      rpPaymentStream.setFundingAddress(streamId, randomPerson.address)
+      rpPaymentStream.updateFundingAddress(streamId, randomPerson.address)
     ).to.be.revertedWith('Not stream owner')
   })
 
@@ -175,7 +175,7 @@ describe('PaymentStream', function () {
   it('Sets the new payee', async function () {
     const [, , , , newPayee] = await ethers.getSigners()
 
-    await paymentStream.setPayee(streamId, newPayee.address)
+    await paymentStream.updatePayee(streamId, newPayee.address)
 
     const streamInfo = await paymentStream.getStream(streamId)
 
@@ -188,13 +188,13 @@ describe('PaymentStream', function () {
 
     const claimable = await paymentStream.claimable(streamId)
 
-    const setFundingRateTx = await paymentStream.setFundingRate(
+    const updateFundingRateTx = await paymentStream.updateFundingRate(
       streamId,
       usdAmount,
       deadline
     )
 
-    const { events } = await setFundingRateTx.wait()
+    const { events } = await updateFundingRateTx.wait()
 
     const event = events.find(newEvent => newEvent.event === 'Claimed')
 
@@ -202,7 +202,7 @@ describe('PaymentStream', function () {
 
     const streamInfo = await paymentStream.getStream(streamId)
 
-    expect(streamInfo.endTime).to.equal(deadline)
+    expect(streamInfo.startTime.add(streamInfo.secs)).to.equal(deadline)
   })
 
   it('Payee should be able to claim the full amount after the deadline is expired', async function () {
