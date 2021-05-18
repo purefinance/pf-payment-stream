@@ -13,7 +13,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
   using Counters for Counters.Counter;
 
-  Counters.Counter private _totalStreams;
+  Counters.Counter private totalStreams;
 
   modifier onlyPayer(uint256 streamId) {
     require(msg.sender == streams[streamId].payer, "Not stream owner");
@@ -41,240 +41,314 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     // Start the counts at 1
     // the 0th stream is available to all
 
-    _totalStreams.increment();
+    totalStreams.increment();
   }
 
-  function _addToken(address tokenAddress, address oracleAddress) internal {
-    require(oracleAddress != address(0), "Oracle address missing");
+  /**
+   * @notice Creates a new payment stream
+   * @dev Payer (msg.sender) is set as admin of "pausableRole", so he can grant and revoke the "pausable" role later on
+   * @param _payee address that receives the payment stream
+   * @param _usdAmount uint256 total amount in USD (scaled to 18 decimals) to be distributed until endTime
+   * @param _token address of the ERC20 token that payee receives as payment
+   * @param _fundingAddress address used to withdraw the drip
+   * @param _endTime timestamp that sets drip distrbution end
+   * @return newly created streamId
+   */
 
-    AggregatorV3Interface oracle = AggregatorV3Interface(oracleAddress);
+  function createStream(
+    address _payee,
+    uint256 _usdAmount,
+    address _token,
+    address _fundingAddress,
+    uint256 _endTime
+  ) external override returns (uint256) {
+    require(_endTime > block.timestamp, "End time is in the past");
+    require(_payee != _fundingAddress, "payee == fundingAddress");
+    require(
+      _payee != address(0) && _fundingAddress != address(0),
+      "invalid payee or fundingAddress"
+    );
+    require(_usdAmount > 0, "usdAmount == 0");
+    require(
+      address(supportedTokens[_token]) != address(0),
+      "Token not supported"
+    );
 
-    supportedTokens[tokenAddress] = oracle;
+    Stream memory _stream;
 
-    emit TokenAdded(tokenAddress, oracleAddress);
+    _stream.payee = _payee;
+    _stream.usdAmount = _usdAmount;
+    _stream.token = _token;
+    _stream.fundingAddress = _fundingAddress;
+    _stream.payer = msg.sender;
+    _stream.paused = false;
+    _stream.startTime = block.timestamp;
+    _stream.secs = _endTime - block.timestamp;
+    _stream.usdPerSec = _usdAmount / _stream.secs;
+    _stream.claimed = 0;
+
+    uint256 _streamId = totalStreams.current();
+
+    streams[_streamId] = _stream;
+
+    bytes32 _adminRole = keccak256(abi.encodePacked("admin", _streamId));
+    bytes32 _pausableRole = keccak256(abi.encodePacked(_streamId));
+
+    _setupRole(_adminRole, msg.sender);
+    _setRoleAdmin(_pausableRole, _adminRole);
+
+    totalStreams.increment();
+
+    emit StreamCreated(_streamId, msg.sender, _payee, _usdAmount);
+
+    return _streamId;
   }
 
-  function addToken(address tokenAddress, address oracleAddress)
+  /**
+   * @notice Delegates pausable capability to new delegate
+   * @dev Only RoleAdmin (Payer) can delegate this capability, tx will revert otherwise
+   * @param _streamId id of a stream that Payer owns
+   * @param _delegate address that receives the "pausableRole"
+   */
+  function delegatePausable(uint256 _streamId, address _delegate)
+    external
+    override
+  {
+    require(_delegate != address(0), "Invalid delegate");
+
+    grantRole(keccak256(abi.encodePacked(_streamId)), _delegate);
+  }
+
+  /**
+   * @notice Revokes pausable capability of a delegate
+   * @dev Only RoleAdmin (Payer) can revoke this capability, tx will revert otherwise
+   * @param _streamId id of a stream that Payer owns
+   * @param _delegate address that has its "pausableRole" revoked
+   */
+  function revokePausable(uint256 _streamId, address _delegate)
+    external
+    override
+  {
+    revokeRole(keccak256(abi.encodePacked(_streamId)), _delegate);
+  }
+
+  /**
+   * @notice Pauses a stream if caller is either the payer or a delegate of pausableRole
+   * @param _streamId id of a stream
+   */
+  function pauseStream(uint256 _streamId)
+    external
+    override
+    onlyPayerOrDelegated(_streamId)
+  {
+    streams[_streamId].paused = true;
+    emit StreamPaused(_streamId);
+  }
+
+  /**
+   * @notice Unpauses a stream if caller is either the payer or a delegate of pausableRole
+   * @param _streamId id of a stream
+   */
+  function unpauseStream(uint256 _streamId)
+    external
+    override
+    onlyPayerOrDelegated(_streamId)
+  {
+    streams[_streamId].paused = false;
+    emit StreamUnpaused(_streamId);
+  }
+
+  /**
+   * @notice If caller is the payer of the stream it sets a new address as receiver of the stream
+   * @param _streamId id of a stream
+   * @param _newPayee address of new payee
+   */
+  function updatePayee(uint256 _streamId, address _newPayee)
+    external
+    override
+    onlyPayer(_streamId)
+  {
+    require(_newPayee != address(0), "newPayee invalid");
+    streams[_streamId].payee = _newPayee;
+    emit PayeeUpdated(_streamId, _newPayee);
+  }
+
+  /**
+   * @notice If caller is the payer of the stream it sets a new address used to withdraw the drip
+   * @param _streamId id of a stream
+   * @param _newFundingAddress new address used to withdraw the drip
+   */
+  function updateFundingAddress(uint256 _streamId, address _newFundingAddress)
+    external
+    override
+    onlyPayer(_streamId)
+  {
+    require(_newFundingAddress != address(0), "newFundingAddress invalid");
+    streams[_streamId].fundingAddress = _newFundingAddress;
+    emit FundingAddressUpdated(_streamId, _newFundingAddress);
+  }
+
+  /**
+   * @notice If caller is the payer it increases or decreases a stream funding rate
+   * @dev Any unclaimed drip amount remaining will be claimed on behalf of payee
+   * @param _streamId id of a stream
+   * @param _usdAmount uint256 total amount in USD (scaled to 18 decimals) to be distributed until endTime
+   * @param _endTime timestamp that sets drip distrbution end
+   */
+  function updateFundingRate(
+    uint256 _streamId,
+    uint256 _usdAmount,
+    uint256 _endTime
+  ) external override onlyPayer(_streamId) {
+    Stream memory _stream = streams[_streamId];
+
+    require(_endTime > block.timestamp, "End time is in the past");
+
+    uint256 _accumulated = _claimable(_streamId);
+    uint256 _amount = _usdToTokenAmount(_stream.token, _accumulated);
+
+    _stream.usdAmount = _usdAmount;
+    _stream.startTime = block.timestamp;
+    _stream.secs = _endTime - block.timestamp;
+    _stream.usdPerSec = _usdAmount / _stream.secs;
+    _stream.claimed = 0;
+
+    streams[_streamId] = _stream;
+
+    IERC20(_stream.token).safeTransferFrom(
+      _stream.fundingAddress,
+      _stream.payee,
+      _amount
+    );
+
+    emit Claimed(_streamId, _accumulated, _amount);
+    emit StreamUpdated(_streamId, _usdAmount, _endTime);
+  }
+
+  /**
+   * @notice If caller is contract owner it adds (or updates) Oracle price feed for given token
+   * @param _tokenAddress address of the ERC20 token to add support to
+   * @param _oracleAddress address of Chainlink Oracle
+   */
+  function addToken(address _tokenAddress, address _oracleAddress)
     external
     override
     onlyOwner
   {
-    _addToken(tokenAddress, oracleAddress);
+    require(_oracleAddress != address(0), "Oracle address missing");
+
+    AggregatorV3Interface oracle = AggregatorV3Interface(_oracleAddress);
+
+    supportedTokens[_tokenAddress] = oracle;
+
+    emit TokenAdded(_tokenAddress, _oracleAddress);
   }
 
-  function getStream(uint256 streamId) public view returns (Stream memory) {
-    return streams[streamId];
+  /**
+   * @notice If caller is the payee of streamId it receives the accrued drip amount
+   * @param _streamId id of a stream
+   */
+  function claim(uint256 _streamId) external override onlyPayee(_streamId) {
+    Stream memory _stream = streams[_streamId];
+
+    require(!_stream.paused, "Stream is paused");
+
+    uint256 _accumulated = _claimable(_streamId);
+    uint256 _amount = _usdToTokenAmount(_stream.token, _accumulated);
+
+    _stream.claimed += _accumulated;
+
+    streams[_streamId] = _stream;
+
+    IERC20(_stream.token).safeTransferFrom(
+      _stream.fundingAddress,
+      _stream.payee,
+      _amount
+    );
+
+    emit Claimed(_streamId, _accumulated, _amount);
   }
 
+  /**
+   * @notice Helper function, gets stream informations
+   * @param _streamId id of a stream
+   * @return Stream struct
+   */
+  function getStream(uint256 _streamId) external view returns (Stream memory) {
+    return streams[_streamId];
+  }
+
+  /**
+   * @notice Helper function, gets no. of total streams, useful for looping through streams using getStream
+   * @return uint256
+   */
   function getStreamsCount() external view override returns (uint256) {
-    return _totalStreams.current();
+    return totalStreams.current();
   }
 
-  function createStream(
-    address payee,
-    uint256 usdAmount,
-    address token,
-    address fundingAddress,
-    uint256 endTime
-  ) external override returns (uint256) {
-    require(endTime > block.timestamp, "End time is in the past");
-    require(payee != fundingAddress, "payee == fundingAddress");
-    require(
-      payee != address(0) && fundingAddress != address(0),
-      "invalid payee or fundingAddress"
-    );
-    require(usdAmount > 0, "usdAmount == 0");
-    require(
-      address(supportedTokens[token]) != address(0),
-      "Token not supported"
-    );
-
-    Stream memory stream;
-
-    stream.payee = payee;
-    stream.usdAmount = usdAmount;
-    stream.token = token;
-    stream.fundingAddress = fundingAddress;
-    stream.payer = msg.sender;
-    stream.paused = false;
-    stream.startTime = block.timestamp;
-    stream.secs = endTime - block.timestamp;
-    stream.usdPerSec = usdAmount / stream.secs;
-    stream.claimed = 0;
-
-    uint256 streamId = _totalStreams.current();
-
-    streams[streamId] = stream;
-
-    bytes32 adminRole = keccak256(abi.encodePacked("admin", streamId));
-    bytes32 pausableRole = keccak256(abi.encodePacked(streamId));
-
-    // Payer is set as admin of "pausableRole", so he can grant and revoke the "pausable" role later on
-
-    _setupRole(adminRole, msg.sender);
-    _setRoleAdmin(pausableRole, adminRole);
-
-    emit NewStream(streamId, msg.sender, payee, usdAmount);
-
-    _totalStreams.increment();
-
-    return streamId;
-  }
-
-  function delegatePausable(uint256 streamId, address delegate)
-    external
-    override
-  {
-    require(delegate != address(0), "Invalid delegate");
-
-    grantRole(keccak256(abi.encodePacked(streamId)), delegate);
-  }
-
-  function revokePausable(uint256 streamId, address delegate)
-    external
-    override
-  {
-    revokeRole(keccak256(abi.encodePacked(streamId)), delegate);
-  }
-
-  function pauseStream(uint256 streamId)
-    external
-    override
-    onlyPayerOrDelegated(streamId)
-  {
-    streams[streamId].paused = true;
-    emit StreamPaused(streamId);
-  }
-
-  function unpauseStream(uint256 streamId)
-    external
-    override
-    onlyPayerOrDelegated(streamId)
-  {
-    streams[streamId].paused = false;
-    emit StreamUnpaused(streamId);
-  }
-
-  function updatePayee(uint256 streamId, address newPayee)
-    external
-    override
-    onlyPayer(streamId)
-  {
-    require(newPayee != address(0), "newPayee invalid");
-    streams[streamId].payee = newPayee;
-    emit PayeeUpdated(streamId, newPayee);
-  }
-
-  function updateFundingAddress(uint256 streamId, address newFundingAddress)
-    external
-    override
-    onlyPayer(streamId)
-  {
-    require(newFundingAddress != address(0), "newFundingAddress invalid");
-    streams[streamId].fundingAddress = newFundingAddress;
-    emit FundingAddressUpdated(streamId, newFundingAddress);
-  }
-
-  function updateFundingRate(
-    uint256 streamId,
-    uint256 usdAmount,
-    uint256 endTime
-  ) external override onlyPayer(streamId) {
-    Stream memory stream = streams[streamId];
-
-    require(endTime > block.timestamp, "End time is in the past");
-
-    uint256 accumulated = _claimable(streamId);
-    uint256 amount = _usdToTokenAmount(stream.token, accumulated);
-
-    stream.usdAmount = usdAmount;
-    stream.startTime = block.timestamp;
-    stream.secs = endTime - block.timestamp;
-    stream.usdPerSec = usdAmount / stream.secs;
-    stream.claimed = 0;
-
-    streams[streamId] = stream;
-
-    IERC20(stream.token).safeTransferFrom(
-      stream.fundingAddress,
-      stream.payee,
-      amount
-    );
-
-    emit Claimed(streamId, accumulated, amount);
-    emit StreamUpdated(streamId, usdAmount, endTime);
-  }
-
-  function claimable(uint256 streamId)
+  function claimable(uint256 _streamId)
     external
     view
     override
     returns (uint256)
   {
-    return _claimable(streamId);
+    return _claimable(_streamId);
   }
 
-  // returns the claimable amount in USD
-  function _claimable(uint256 streamId) internal view returns (uint256) {
-    Stream memory stream = streams[streamId];
+  /**
+   * @notice Helper function, gets the accrued drip of given stream converted into target token amount
+   * @param _streamId id of a stream
+   * @return uint256 amount in target token
+   */
+  function claimableToken(uint256 _streamId)
+    external
+    view
+    override
+    returns (uint256)
+  {
+    Stream memory _stream = streams[_streamId];
 
-    uint256 elapsed = block.timestamp - stream.startTime;
+    uint256 _accumulated = _claimable(_streamId);
 
-    if (elapsed > stream.secs) {
-      return stream.usdAmount - stream.claimed; // no more drips to avoid floating point dust
+    return _usdToTokenAmount(_stream.token, _accumulated);
+  }
+
+  /**
+   * @notice gets the accrued drip of given stream in USD
+   * @param _streamId id of a stream
+   * @return uint256 USD amount (scaled to 18 decimals)
+   */
+  function _claimable(uint256 _streamId) internal view returns (uint256) {
+    Stream memory _stream = streams[_streamId];
+
+    uint256 _elapsed = block.timestamp - _stream.startTime;
+
+    if (_elapsed > _stream.secs) {
+      return _stream.usdAmount - _stream.claimed; // no more drips to avoid floating point dust
     }
 
-    return (stream.usdPerSec * elapsed) - stream.claimed;
+    return (_stream.usdPerSec * _elapsed) - _stream.claimed;
   }
 
-  // returns the claimable amount in target token
-  function claimableToken(uint256 streamId)
-    external
-    view
-    override
-    returns (uint256)
-  {
-    Stream memory stream = streams[streamId];
-
-    uint256 accumulated = _claimable(streamId);
-
-    return _usdToTokenAmount(stream.token, accumulated);
-  }
-
-  function _usdToTokenAmount(address token, uint256 amount)
+  /**
+   * @notice Converts given amount in usd to target token amount using oracle
+   * @param _token address of target token
+   * @param _amount amount in USD (scaled to 18 decimals)
+   * @return uint256 target token amount
+   */
+  function _usdToTokenAmount(address _token, uint256 _amount)
     internal
     view
     returns (uint256)
   {
-    AggregatorV3Interface oracle = supportedTokens[token];
+    AggregatorV3Interface _oracle = supportedTokens[_token];
 
-    (, int256 price, , , ) = oracle.latestRoundData();
+    (, int256 _price, , , ) = _oracle.latestRoundData();
 
-    uint8 decimals = oracle.decimals();
+    uint8 _decimals = _oracle.decimals();
 
-    uint256 scaledPrice = uint256(price) * (10**(18 - decimals)); // scales oracle price to 18 decimals
+    uint256 _scaledPrice = uint256(_price) * (10**(18 - _decimals)); // scales oracle price to 18 decimals
 
-    return (amount * 1e18) / scaledPrice;
-  }
-
-  function claim(uint256 streamId) external override onlyPayee(streamId) {
-    Stream memory stream = streams[streamId];
-
-    require(!stream.paused, "Stream is paused");
-
-    uint256 accumulated = _claimable(streamId);
-    uint256 amount = _usdToTokenAmount(stream.token, accumulated);
-
-    stream.claimed += accumulated;
-
-    streams[streamId] = stream;
-
-    IERC20(stream.token).safeTransferFrom(
-      stream.fundingAddress,
-      stream.payee,
-      amount
-    );
-
-    emit Claimed(streamId, accumulated, amount);
+    return (_amount * 1e18) / _scaledPrice;
   }
 }

@@ -15,7 +15,7 @@ struct Stream {
 }
 
 interface IPaymentStream {
-  event NewStream(
+  event StreamCreated(
     uint256 id,
     address indexed payer,
     address payee,

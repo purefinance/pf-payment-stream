@@ -41,7 +41,7 @@ describe('PaymentStream', function () {
 
     const { events } = await createStreamTx.wait()
 
-    const event = events.find(newEvent => newEvent.event === 'NewStream')
+    const event = events.find(newEvent => newEvent.event === 'StreamCreated')
 
     expect(event.args.id).to.equal(streamId)
   })

@@ -147,7 +147,7 @@ describe('Security checks', function () {
 
       const { events } = await createStreamTx.wait()
 
-      const event = events.find(newEvent => newEvent.event === 'NewStream')
+      const event = events.find(newEvent => newEvent.event === 'StreamCreated')
 
       streamId = event.args.id
     })
@@ -193,7 +193,7 @@ describe('Security checks', function () {
 
       const { events } = await createStreamTx.wait()
 
-      const event = events.find(newEvent => newEvent.event === 'NewStream')
+      const event = events.find(newEvent => newEvent.event === 'StreamCreated')
 
       streamId = event.args.id
     })
