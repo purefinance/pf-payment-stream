@@ -51,7 +51,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
    * @param _usdAmount uint256 total amount in USD (scaled to 18 decimals) to be distributed until endTime
    * @param _token address of the ERC20 token that payee receives as payment
    * @param _fundingAddress address used to withdraw the drip
-   * @param _endTime timestamp that sets drip distrbution end
+   * @param _endTime timestamp that sets drip distribution end
    * @return newly created streamId
    */
 
@@ -193,7 +193,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
    * @dev Any unclaimed drip amount remaining will be claimed on behalf of payee
    * @param _streamId id of a stream
    * @param _usdAmount uint256 total amount in USD (scaled to 18 decimals) to be distributed until endTime
-   * @param _endTime timestamp that sets drip distrbution end
+   * @param _endTime timestamp that sets drip distribution end
    */
   function updateFundingRate(
     uint256 _streamId,
@@ -270,7 +270,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   }
 
   /**
-   * @notice Helper function, gets stream informations
+   * @notice Helper function, gets stream information
    * @param _streamId id of a stream
    * @return Stream struct
    */
