@@ -16,21 +16,21 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   Counters.Counter private totalStreams;
 
   modifier onlyPayer(uint256 streamId) {
-    require(msg.sender == streams[streamId].payer, "Not stream owner");
+    require(_msgSender() == streams[streamId].payer, "Not stream owner");
     _;
   }
 
   modifier onlyPayerOrDelegated(uint256 streamId) {
     require(
-      msg.sender == streams[streamId].payer ||
-        hasRole(keccak256(abi.encodePacked(streamId)), msg.sender),
+      _msgSender() == streams[streamId].payer ||
+        hasRole(keccak256(abi.encodePacked(streamId)), _msgSender()),
       "Not stream owner/delegated"
     );
     _;
   }
 
   modifier onlyPayee(uint256 streamId) {
-    require(msg.sender == streams[streamId].payee, "Not payee");
+    require(_msgSender() == streams[streamId].payee, "Not payee");
     _;
   }
 
@@ -46,7 +46,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
 
   /**
    * @notice Creates a new payment stream
-   * @dev Payer (msg.sender) is set as admin of "pausableRole", so he can grant and revoke the "pausable" role later on
+   * @dev Payer (_msgSender()) is set as admin of "pausableRole", so he can grant and revoke the "pausable" role later on
    * @param _payee address that receives the payment stream
    * @param _usdAmount uint256 total amount in USD (scaled to 18 decimals) to be distributed until endTime
    * @param _token address of the ERC20 token that payee receives as payment
@@ -80,7 +80,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     _stream.usdAmount = _usdAmount;
     _stream.token = _token;
     _stream.fundingAddress = _fundingAddress;
-    _stream.payer = msg.sender;
+    _stream.payer = _msgSender();
     _stream.paused = false;
     _stream.startTime = block.timestamp;
     _stream.secs = _endTime - block.timestamp;
@@ -94,12 +94,12 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     bytes32 _adminRole = keccak256(abi.encodePacked("admin", _streamId));
     bytes32 _pausableRole = keccak256(abi.encodePacked(_streamId));
 
-    _setupRole(_adminRole, msg.sender);
+    _setupRole(_adminRole, _msgSender());
     _setRoleAdmin(_pausableRole, _adminRole);
 
     totalStreams.increment();
 
-    emit StreamCreated(_streamId, msg.sender, _payee, _usdAmount);
+    emit StreamCreated(_streamId, _msgSender(), _payee, _usdAmount);
 
     return _streamId;
   }
@@ -306,11 +306,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     override
     returns (uint256)
   {
-    Stream memory _stream = streams[_streamId];
-
-    uint256 _accumulated = _claimable(_streamId);
-
-    return _usdToTokenAmount(_stream.token, _accumulated);
+    return _usdToTokenAmount(streams[_streamId].token, _claimable(_streamId));
   }
 
   /**
