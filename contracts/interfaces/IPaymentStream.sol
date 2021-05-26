@@ -9,22 +9,25 @@ struct Stream {
   address payer;
   bool paused;
   uint256 startTime;
-  uint256 endTime;
   uint256 secs;
+  uint256 usdPerSec;
   uint256 claimed;
 }
 
 interface IPaymentStream {
-  event NewStream(
+  event StreamCreated(
     uint256 id,
     address indexed payer,
     address payee,
     uint256 usdAmount
   );
-  event TokenAdded(address tokenAddress, address oracleAddress);
+  event TokenAdded(address indexed tokenAddress, address oracleAddress);
   event Claimed(uint256 indexed id, uint256 usdAmount, uint256 tokenAmount);
   event StreamPaused(uint256 indexed id);
   event StreamUnpaused(uint256 indexed id);
+  event StreamUpdated(uint256 indexed id, uint256 usdAmount, uint256 endTime);
+  event FundingAddressUpdated(uint256 indexed id, address newFundingAddress);
+  event PayeeUpdated(uint256 indexed id, address newPayee);
 
   function createStream(
     address payee,
@@ -49,4 +52,17 @@ interface IPaymentStream {
   function unpauseStream(uint256 streamId) external;
 
   function delegatePausable(uint256 streamId, address delegate) external;
+
+  function revokePausable(uint256 streamId, address delegate) external;
+
+  function updateFundingRate(
+    uint256 streamId,
+    uint256 usdAmount,
+    uint256 endTime
+  ) external;
+
+  function updateFundingAddress(uint256 streamId, address newFundingAddress)
+    external;
+
+  function updatePayee(uint256 streamId, address newPayee) external;
 }

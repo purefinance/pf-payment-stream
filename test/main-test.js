@@ -41,7 +41,7 @@ describe('PaymentStream', function () {
 
     const { events } = await createStreamTx.wait()
 
-    const event = events.find(newEvent => newEvent.event === 'NewStream')
+    const event = events.find(newEvent => newEvent.event === 'StreamCreated')
 
     expect(event.args.id).to.equal(streamId)
   })
@@ -64,13 +64,13 @@ describe('PaymentStream', function () {
   it("Payer should set new funding address to 'thirdGuy' and then back to 'fundingAddress'", async function () {
     const [fundingAddress, , thirdGuy] = await ethers.getSigners()
 
-    await paymentStream.setFundingAddress(streamId, thirdGuy.address)
+    await paymentStream.updateFundingAddress(streamId, thirdGuy.address)
 
     const streamInfo = await paymentStream.getStream(streamId)
 
     expect(streamInfo.fundingAddress).to.equal(thirdGuy.address)
 
-    await paymentStream.setFundingAddress(streamId, fundingAddress.address)
+    await paymentStream.updateFundingAddress(streamId, fundingAddress.address)
   })
 
   it('Random person should fail to set new funding address (not the owner)', async function () {
@@ -79,7 +79,7 @@ describe('PaymentStream', function () {
     const rpPaymentStream = await paymentStream.connect(randomPerson)
 
     expect(
-      rpPaymentStream.setFundingAddress(streamId, randomPerson.address)
+      rpPaymentStream.updateFundingAddress(streamId, randomPerson.address)
     ).to.be.revertedWith('Not stream owner')
   })
 
@@ -160,10 +160,22 @@ describe('PaymentStream', function () {
     expect(streamInfo.paused).to.equal(false)
   })
 
+  it('Revokes pausable role', async function () {
+    const [, , thirdGuy] = await ethers.getSigners()
+
+    await paymentStream.revokePausable(streamId, thirdGuy.address)
+
+    const tgPaymentStream = await paymentStream.connect(thirdGuy)
+
+    expect(tgPaymentStream.pauseStream(streamId)).to.be.revertedWith(
+      'Not stream owner/delegated'
+    )
+  })
+
   it('Sets the new payee', async function () {
     const [, , , , newPayee] = await ethers.getSigners()
 
-    await paymentStream.setPayee(streamId, newPayee.address)
+    await paymentStream.updatePayee(streamId, newPayee.address)
 
     const streamInfo = await paymentStream.getStream(streamId)
 
@@ -174,11 +186,23 @@ describe('PaymentStream', function () {
     const blockInfo = await ethers.provider.getBlock('latest')
     const deadline = blockInfo.timestamp + 86400 * 7 // 7 days from now
 
-    await paymentStream.setFundingRate(streamId, usdAmount, deadline)
+    const claimable = await paymentStream.claimable(streamId)
+
+    const updateFundingRateTx = await paymentStream.updateFundingRate(
+      streamId,
+      usdAmount,
+      deadline
+    )
+
+    const { events } = await updateFundingRateTx.wait()
+
+    const event = events.find(newEvent => newEvent.event === 'Claimed')
+
+    expect(event.args.usdAmount.gte(claimable)).to.equal(true)
 
     const streamInfo = await paymentStream.getStream(streamId)
 
-    expect(streamInfo.endTime).to.equal(deadline)
+    expect(streamInfo.startTime.add(streamInfo.secs)).to.equal(deadline)
   })
 
   it('Payee should be able to claim the full amount after the deadline is expired', async function () {
