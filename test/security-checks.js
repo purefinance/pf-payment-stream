@@ -3,8 +3,13 @@
 const { expect } = require('chai')
 const { ethers, network } = require('hardhat')
 
-const oracleAddress = '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419' // ETH/USD Chainlink oracle
-const VSP = '0x1b40183efb4dd766f11bda7a7c3ad8982e998421'
+const SWAP_MANAGER_ADDRESS = '0xC48ea9A2daA4d816e4c9333D6689C70070010174'
+
+const DEX_UNISWAP = 0
+
+const VSP_ADDRESS = '0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421'
+const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 const usdAmount = ethers.utils.parseEther('100000')
 
 describe('Security checks', function () {
@@ -27,22 +32,15 @@ describe('Security checks', function () {
     fakeToken = await FakeERC20.deploy(ethers.utils.parseEther('1000000'))
 
     const PaymentStream = await ethers.getContractFactory('PaymentStream')
-    paymentStream = await PaymentStream.deploy()
+    paymentStream = await PaymentStream.deploy(SWAP_MANAGER_ADDRESS)
 
     await Promise.all([fakeToken.deployed(), paymentStream.deployed()])
 
-    await paymentStream.addToken(fakeToken.address, oracleAddress)
-  })
-
-  describe('addToken', function () {
-    it('Invalid oracle address should revert', async function () {
-      const addTokenTx = paymentStream.addToken(
-        VSP,
-        ethers.constants.AddressZero
-      )
-
-      expect(addTokenTx).to.be.revertedWith('Oracle address missing')
-    })
+    await paymentStream.addToken(fakeToken.address, DEX_UNISWAP, [
+      USDC_ADDRESS,
+      WETH_ADDRESS,
+      VSP_ADDRESS
+    ])
   })
 
   describe('createStream', function () {
@@ -120,7 +118,7 @@ describe('Security checks', function () {
       const createStreamTx = paymentStream.createStream(
         payee.address,
         usdAmount,
-        VSP,
+        VSP_ADDRESS,
         fundingAddress.address,
         blockInfo.timestamp + 86400 * 365
       )
@@ -242,6 +240,21 @@ describe('Security checks', function () {
         )
 
         expect(check).to.be.revertedWith('End time is in the past')
+      })
+    })
+
+    describe('updateSwapManager', function () {
+      it('Setting 0 address should revert', async function () {
+        expect(
+          paymentStream.updateSwapManager(
+            '0x0000000000000000000000000000000000000000'
+          )
+        ).to.be.revertedWith('Invalid SwapManager address')
+      })
+      it('Setting SwapManager address should emit an event', async function () {
+        expect(paymentStream.updateSwapManager(SWAP_MANAGER_ADDRESS))
+          .to.emit(paymentStream, 'SwapManagerUpdated')
+          .withArgs(SWAP_MANAGER_ADDRESS)
       })
     })
   })

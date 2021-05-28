@@ -4,7 +4,11 @@ const { expect } = require('chai')
 const { ethToUsd } = require('../utils/misc')
 const { ethers, network } = require('hardhat')
 
-const oracleAddress = '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419' // ETH/USD Chainlink oracle
+const SWAP_MANAGER_ADDRESS = '0xC48ea9A2daA4d816e4c9333D6689C70070010174'
+const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+const DEX_UNISWAP = 0
+
 const usdAmount = ethers.utils.parseEther('100000')
 const streamId = 1
 
@@ -17,11 +21,14 @@ describe('PaymentStream', function () {
     fakeToken = await FakeERC20.deploy(ethers.utils.parseEther('1000000'))
 
     const PaymentStream = await ethers.getContractFactory('PaymentStream')
-    paymentStream = await PaymentStream.deploy()
+    paymentStream = await PaymentStream.deploy(SWAP_MANAGER_ADDRESS)
 
     await Promise.all([fakeToken.deployed(), paymentStream.deployed()])
 
-    await paymentStream.addToken(fakeToken.address, oracleAddress)
+    await paymentStream.addToken(fakeToken.address, DEX_UNISWAP, [
+      USDC_ADDRESS,
+      WETH_ADDRESS
+    ])
   })
 
   it('Should create first stream and expect stream id: 1', async function () {
@@ -86,6 +93,13 @@ describe('PaymentStream', function () {
   it('Should return the correct claimable amount', async function () {
     await network.provider.send('evm_increaseTime', [86400]) // +1 day
     await network.provider.send('evm_mine')
+
+    const swapManager = await ethers.getContractAt(
+      'ISwapManager',
+      SWAP_MANAGER_ADDRESS
+    )
+
+    await swapManager['updateOracles()']()
 
     const claimable = await paymentStream.claimable(streamId)
     const claimableToken = await paymentStream.claimableToken(streamId)

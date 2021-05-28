@@ -1,19 +1,30 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.3;
 
-import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./interfaces/IPaymentStream.sol";
+import "./interfaces/ISwapManager.sol";
 
 contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
   using Counters for Counters.Counter;
 
+  uint256 private constant TWAP_PERIOD = 1 hours;
+
+  uint8 private constant MAX_PATH = 5;
+
+  struct TokenSupport {
+    address[] path;
+    uint256 dex;
+  }
+
   Counters.Counter private totalStreams;
+  ISwapManager private swapManager;
 
   modifier onlyPayer(uint256 streamId) {
     require(_msgSender() == streams[streamId].payer, "Not stream owner");
@@ -35,13 +46,14 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   }
 
   mapping(uint256 => Stream) public streams;
-  mapping(address => AggregatorV3Interface) public supportedTokens; // token address => oracle address
+  mapping(address => TokenSupport) public supportedTokens; // token address => TokenSupport
 
-  constructor() {
+  constructor(address _swapManager) {
     // Start the counts at 1
     // the 0th stream is available to all
-
     totalStreams.increment();
+
+    swapManager = ISwapManager(_swapManager);
   }
 
   /**
@@ -69,10 +81,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
       "invalid payee or fundingAddress"
     );
     require(_usdAmount > 0, "usdAmount == 0");
-    require(
-      address(supportedTokens[_token]) != address(0),
-      "Token not supported"
-    );
+    require(supportedTokens[_token].path.length > 1, "Token not supported");
 
     Stream memory _stream;
 
@@ -228,20 +237,37 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
   /**
    * @notice If caller is contract owner it adds (or updates) Oracle price feed for given token
    * @param _tokenAddress address of the ERC20 token to add support to
-   * @param _oracleAddress address of Chainlink Oracle
+   * @param _dex ID for choosing the DEX where prices will be retrieved (0 = Uniswap v2, 1 = Sushiswap)
+   * @param _path path of tokens to reach an USD stablecoin from _tokenAddress (e.g: [ USDC, WETH, VSP ])
    */
-  function addToken(address _tokenAddress, address _oracleAddress)
-    external
-    override
-    onlyOwner
-  {
-    require(_oracleAddress != address(0), "Oracle address missing");
+  function addToken(
+    address _tokenAddress,
+    uint8 _dex,
+    address[] memory _path
+  ) external override onlyOwner {
+    TokenSupport memory _tokenSupport;
 
-    AggregatorV3Interface oracle = AggregatorV3Interface(_oracleAddress);
+    uint256 _len = _path.length;
 
-    supportedTokens[_tokenAddress] = oracle;
+    require(_len > 1, "Path too short");
+    require(_len <= MAX_PATH, "Path too long");
 
-    emit TokenAdded(_tokenAddress, _oracleAddress);
+    _len--;
+
+    for (uint8 i = 0; i < _len; i++) {
+      swapManager.createOrUpdateOracle(
+        _path[i],
+        _path[i + 1],
+        TWAP_PERIOD,
+        _dex
+      );
+    }
+
+    _tokenSupport.path = _path;
+
+    supportedTokens[_tokenAddress] = _tokenSupport;
+
+    emit TokenAdded(_tokenAddress);
   }
 
   /**
@@ -253,8 +279,17 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
 
     require(!_stream.paused, "Stream is paused");
 
+    _updateOracles(_stream.token);
+
     uint256 _accumulated = _claimable(_streamId);
+
+    if (_accumulated == 0) return;
+
     uint256 _amount = _usdToTokenAmount(_stream.token, _accumulated);
+
+    // if we get _amount = 0 it means payee called this function
+    // before the oracles had time to update for the first time
+    require(_amount > 0, "Oracle update error");
 
     _stream.claimed += _accumulated;
 
@@ -267,6 +302,18 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     );
 
     emit Claimed(_streamId, _accumulated, _amount);
+  }
+
+  /**
+   * @notice Updates Swap Manager contract address
+   * @dev Only contract owner can change swapManager
+   * @param _newAddress address of new Swap Manager instance
+   */
+  function updateSwapManager(address _newAddress) external override onlyOwner {
+    require(_newAddress != address(0), "Invalid SwapManager address");
+
+    emit SwapManagerUpdated(address(swapManager), _newAddress);
+    swapManager = ISwapManager(_newAddress);
   }
 
   /**
@@ -337,14 +384,52 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     view
     returns (uint256)
   {
-    AggregatorV3Interface _oracle = supportedTokens[_token];
+    TokenSupport memory _tokenSupport = supportedTokens[_token];
 
-    (, int256 _price, , , ) = _oracle.latestRoundData();
+    // _amount is 18 decimals
+    // some stablecoins like USDC has 6 decimals, so we scale the amount accordingly
 
-    uint8 _decimals = _oracle.decimals();
+    _amount = _amount / 10**(18 - ERC20(_tokenSupport.path[0]).decimals());
 
-    uint256 _scaledPrice = uint256(_price) * (10**(18 - _decimals)); // scales oracle price to 18 decimals
+    uint256 lastPrice;
 
-    return (_amount * 1e18) / _scaledPrice;
+    uint256 _len = _tokenSupport.path.length - 1;
+
+    for (uint8 i = 0; i < _len; i++) {
+      (uint256 amountOut, ) =
+        swapManager.consultForFree(
+          _tokenSupport.path[i],
+          _tokenSupport.path[i + 1],
+          (i == 0) ? _amount : lastPrice,
+          TWAP_PERIOD,
+          _tokenSupport.dex
+        );
+      lastPrice = amountOut;
+    }
+
+    return lastPrice;
+  }
+
+  /**
+   * @notice Updates price oracles for a given token
+   * @param _token address of target token
+   */
+  function _updateOracles(address _token) internal {
+    TokenSupport memory _tokenSupport = supportedTokens[_token];
+
+    uint256 _len = _tokenSupport.path.length - 1;
+
+    address[] memory _oracles = new address[](_len);
+
+    for (uint8 i = 0; i < _len; i++) {
+      _oracles[i] = swapManager.getOracle(
+        _tokenSupport.path[i],
+        _tokenSupport.path[i + 1],
+        TWAP_PERIOD,
+        _tokenSupport.dex
+      );
+    }
+
+    swapManager.updateOracles(_oracles);
   }
 }

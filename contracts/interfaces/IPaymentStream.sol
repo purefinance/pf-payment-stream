@@ -21,7 +21,11 @@ interface IPaymentStream {
     address payee,
     uint256 usdAmount
   );
-  event TokenAdded(address indexed tokenAddress, address oracleAddress);
+  event TokenAdded(address indexed tokenAddress);
+  event SwapManagerUpdated(
+    address indexed previousSwapManager,
+    address indexed newSwapManager
+  );
   event Claimed(uint256 indexed id, uint256 usdAmount, uint256 tokenAmount);
   event StreamPaused(uint256 indexed id);
   event StreamUnpaused(uint256 indexed id);
@@ -37,15 +41,15 @@ interface IPaymentStream {
     uint256 endTime
   ) external returns (uint256);
 
-  function getStreamsCount() external view returns (uint256);
-
-  function addToken(address tokenAddress, address oracleAddress) external;
+  function addToken(
+    address _tokenAddress,
+    uint8 _dex,
+    address[] memory _path
+  ) external;
 
   function claim(uint256 streamId) external;
 
-  function claimableToken(uint256 streamId) external view returns (uint256);
-
-  function claimable(uint256 streamId) external view returns (uint256);
+  function updateSwapManager(address newAddress) external;
 
   function pauseStream(uint256 streamId) external;
 
@@ -65,4 +69,10 @@ interface IPaymentStream {
     external;
 
   function updatePayee(uint256 streamId, address newPayee) external;
+
+  function claimableToken(uint256 streamId) external view returns (uint256);
+
+  function claimable(uint256 streamId) external view returns (uint256);
+
+  function getStreamsCount() external view returns (uint256);
 }
