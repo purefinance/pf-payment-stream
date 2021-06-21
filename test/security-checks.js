@@ -254,7 +254,7 @@ describe('Security checks', function () {
       it('Setting SwapManager address should emit an event', async function () {
         expect(paymentStream.updateSwapManager(SWAP_MANAGER_ADDRESS))
           .to.emit(paymentStream, 'SwapManagerUpdated')
-          .withArgs(SWAP_MANAGER_ADDRESS)
+          .withArgs(SWAP_MANAGER_ADDRESS, SWAP_MANAGER_ADDRESS)
       })
     })
   })

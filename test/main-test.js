@@ -90,6 +90,19 @@ describe('PaymentStream', function () {
     ).to.be.revertedWith('Not stream owner')
   })
 
+  it('Setting new funding rate before oracle updates should fail', async function () {
+    const blockInfo = await ethers.provider.getBlock('latest')
+    const deadline = blockInfo.timestamp + 86400 * 7 // 7 days from now
+
+    const updateFundingRateTx = paymentStream.updateFundingRate(
+      streamId,
+      usdAmount,
+      deadline
+    )
+
+    expect(updateFundingRateTx).to.be.revertedWith('Oracle update error')
+  })
+
   it('Should return the correct claimable amount', async function () {
     await network.provider.send('evm_increaseTime', [86400]) // +1 day
     await network.provider.send('evm_mine')

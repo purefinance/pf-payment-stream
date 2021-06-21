@@ -216,6 +216,10 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     uint256 _accumulated = _claimable(_streamId);
     uint256 _amount = _usdToTokenAmount(_stream.token, _accumulated);
 
+    // if we get _amount = 0 it means Payer called this function
+    // before the oracles had time to update for the first time
+    require(_amount > 0, "Oracle update error");
+
     _stream.usdAmount = _usdAmount;
     _stream.startTime = block.timestamp;
     _stream.secs = _endTime - block.timestamp;

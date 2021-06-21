@@ -10,7 +10,6 @@ async function ethToUsd(amount) {
     */
 
     const ETHERSCAN_API = "https://api.etherscan.io/api?module=stats&action=ethprice";
-    const DECIMALS = ethers.BigNumber.from("1000000000000000000");
 
     let { data } = await axios.get(ETHERSCAN_API);
     let { ethusd } = data.result;
