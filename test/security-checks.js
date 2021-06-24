@@ -125,6 +125,48 @@ describe('Security checks', function () {
 
       expect(createStreamTx).to.be.revertedWith('Token not supported')
     })
+
+    it("A Payer can't reuse someone eles' fundingAddress", async function () {
+      const [Payer, fundingAddress, payee, evilPayer, evilPayee, secondPayee] =
+        await ethers.getSigners()
+
+      const blockInfo = await ethers.provider.getBlock('latest')
+
+      await paymentStream
+        .connect(Payer)
+        .createStream(
+          payee.address,
+          usdAmount,
+          fakeToken.address,
+          fundingAddress.address,
+          blockInfo.timestamp + 86400 * 365
+        )
+
+      // evilPayer tries to reuse Payer' fundingAddress and tries routing funds to himself (evilPayee)
+      const createStreamTx = paymentStream
+        .connect(evilPayer)
+        .createStream(
+          evilPayee.address,
+          usdAmount,
+          fakeToken.address,
+          fundingAddress.address,
+          blockInfo.timestamp + 100
+        )
+
+      expect(createStreamTx).to.be.revertedWith('Not funding owner')
+
+      // Payer, on the other hand should still be able to reuse fundingAddress
+      // for funding one more stream
+      await paymentStream
+        .connect(Payer)
+        .createStream(
+          secondPayee.address,
+          usdAmount,
+          fakeToken.address,
+          fundingAddress.address,
+          blockInfo.timestamp + 86400 * 365
+        )
+    })
   })
 
   describe('claim', function () {

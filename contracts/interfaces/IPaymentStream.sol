@@ -30,7 +30,11 @@ interface IPaymentStream {
   event StreamPaused(uint256 indexed id);
   event StreamUnpaused(uint256 indexed id);
   event StreamUpdated(uint256 indexed id, uint256 usdAmount, uint256 endTime);
-  event FundingAddressUpdated(uint256 indexed id, address newFundingAddress);
+  event FundingAddressUpdated(
+    uint256 indexed id,
+    address indexed previousFundingAddress,
+    address indexed newFundingAddress
+  );
   event PayeeUpdated(uint256 indexed id, address newPayee);
 
   function createStream(
