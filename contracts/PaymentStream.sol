@@ -47,6 +47,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
 
   mapping(uint256 => Stream) public streams;
   mapping(address => TokenSupport) public supportedTokens; // token address => TokenSupport
+  mapping(address => address) public fundingOwnership; // fundingAddress => payer
 
   constructor(address _swapManager) {
     // Start the counts at 1
@@ -80,6 +81,17 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
       _payee != address(0) && _fundingAddress != address(0),
       "invalid payee or fundingAddress"
     );
+
+    // _fundingAddress shouldn't be in use by any other Payer
+    // or Payer has to be the owner already
+    if (fundingOwnership[_fundingAddress] == address(0))
+      fundingOwnership[_fundingAddress] = _msgSender();
+
+    require(
+      fundingOwnership[_fundingAddress] == _msgSender(),
+      "Not funding owner"
+    );
+
     require(_usdAmount > 0, "usdAmount == 0");
     require(supportedTokens[_token].path.length > 1, "Token not supported");
 
@@ -193,8 +205,22 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
     onlyPayer(_streamId)
   {
     require(_newFundingAddress != address(0), "newFundingAddress invalid");
+
+    // _newFundingAddress shouldn't be in use by any other Payer
+    // or Payer has to be the owner already
+    if (fundingOwnership[_newFundingAddress] == address(0))
+      fundingOwnership[_newFundingAddress] = _msgSender();
+
+    require(
+      fundingOwnership[_newFundingAddress] == _msgSender(),
+      "Not funding owner"
+    );
+    emit FundingAddressUpdated(
+      _streamId,
+      streams[_streamId].fundingAddress,
+      _newFundingAddress
+    );
     streams[_streamId].fundingAddress = _newFundingAddress;
-    emit FundingAddressUpdated(_streamId, _newFundingAddress);
   }
 
   /**
