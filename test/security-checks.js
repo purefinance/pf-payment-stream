@@ -3,7 +3,7 @@
 const { expect } = require('chai')
 const { ethers, network } = require('hardhat')
 
-const SWAP_MANAGER_ADDRESS = '0xC48ea9A2daA4d816e4c9333D6689C70070010174'
+const SWAP_MANAGER_ADDRESS = '0xb3361918F2651409a6302DcEC2B1F0C6241fEC2e'
 
 const DEX_UNISWAP = 0
 
