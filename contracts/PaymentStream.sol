@@ -268,7 +268,7 @@ contract PaymentStream is Ownable, AccessControl, IPaymentStream {
    * @notice If caller is contract owner it adds (or updates) Oracle price feed for given token
    * @param _tokenAddress address of the ERC20 token to add support to
    * @param _dex ID for choosing the DEX where prices will be retrieved (0 = Uniswap v2, 1 = Sushiswap)
-   * @param _path path of tokens to reach an USD stablecoin from _tokenAddress (e.g: [ USDC, WETH, VSP ])
+   * @param _path path of tokens to reach a _tokenAddress from a USD stablecoin (e.g: [ USDC, WETH, VSP ])
    */
   function addToken(
     address _tokenAddress,
