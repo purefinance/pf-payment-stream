@@ -4,7 +4,7 @@ const { expect } = require('chai')
 const { ethToUsd } = require('../utils/misc')
 const { ethers, network } = require('hardhat')
 
-const SWAP_MANAGER_ADDRESS = '0xb3361918F2651409a6302DcEC2B1F0C6241fEC2e'
+const SWAP_MANAGER_ADDRESS = '0xe382d9f2394A359B01006faa8A1864b8a60d2710'
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 const DEX_UNISWAP = 0
