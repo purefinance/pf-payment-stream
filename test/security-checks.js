@@ -13,7 +13,7 @@ const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 const usdAmount = ethers.utils.parseEther('100000')
 
 describe('Security checks', function () {
-  let paymentStream
+  let paymentStreamFactory
   let fakeToken
 
   before(async function () {
@@ -31,12 +31,16 @@ describe('Security checks', function () {
     const FakeERC20 = await ethers.getContractFactory('FakeERC20')
     fakeToken = await FakeERC20.deploy(ethers.utils.parseEther('1000000'))
 
-    const PaymentStream = await ethers.getContractFactory('PaymentStream')
-    paymentStream = await PaymentStream.deploy(SWAP_MANAGER_ADDRESS)
+    const PaymentStreamFactory = await ethers.getContractFactory(
+      'PaymentStreamFactory'
+    )
+    paymentStreamFactory = await PaymentStreamFactory.deploy(
+      SWAP_MANAGER_ADDRESS
+    )
 
-    await Promise.all([fakeToken.deployed(), paymentStream.deployed()])
+    await Promise.all([fakeToken.deployed(), paymentStreamFactory.deployed()])
 
-    await paymentStream.addToken(fakeToken.address, DEX_UNISWAP, [
+    await paymentStreamFactory.addToken(fakeToken.address, DEX_UNISWAP, [
       USDC_ADDRESS,
       WETH_ADDRESS,
       VSP_ADDRESS
@@ -49,7 +53,7 @@ describe('Security checks', function () {
 
       const blockInfo = await ethers.provider.getBlock('latest')
 
-      const createStreamTx = paymentStream.createStream(
+      const createStreamTx = paymentStreamFactory.createStream(
         payee.address,
         usdAmount,
         fakeToken.address,
@@ -57,7 +61,7 @@ describe('Security checks', function () {
         blockInfo.timestamp - 1
       )
 
-      expect(createStreamTx).to.be.revertedWith('End time is in the past')
+      expect(createStreamTx).to.be.revertedWith('invalid-end-time')
     })
 
     it('usdAmount = 0 should revert', async function () {
@@ -65,7 +69,7 @@ describe('Security checks', function () {
 
       const blockInfo = await ethers.provider.getBlock('latest')
 
-      const createStreamTx = paymentStream.createStream(
+      const createStreamTx = paymentStreamFactory.createStream(
         payee.address,
         0,
         fakeToken.address,
@@ -73,7 +77,7 @@ describe('Security checks', function () {
         blockInfo.timestamp + 86400 * 365
       )
 
-      expect(createStreamTx).to.be.revertedWith('usdAmount == 0')
+      expect(createStreamTx).to.be.revertedWith('usd-amount-is-0')
     })
 
     it('payee = fundingAddress should revert', async function () {
@@ -81,7 +85,7 @@ describe('Security checks', function () {
 
       const blockInfo = await ethers.provider.getBlock('latest')
 
-      const createStreamTx = paymentStream.createStream(
+      const createStreamTx = paymentStreamFactory.createStream(
         payee.address,
         usdAmount,
         fakeToken.address,
@@ -89,7 +93,7 @@ describe('Security checks', function () {
         blockInfo.timestamp + 86400 * 365
       )
 
-      expect(createStreamTx).to.be.revertedWith('payee == fundingAddress')
+      expect(createStreamTx).to.be.revertedWith('payee-is-funding-address')
     })
 
     it('payee and fundingAddress cannot be null', async function () {
@@ -97,7 +101,7 @@ describe('Security checks', function () {
 
       const blockInfo = await ethers.provider.getBlock('latest')
 
-      const createStreamTx = paymentStream.createStream(
+      const createStreamTx = paymentStreamFactory.createStream(
         ethers.constants.AddressZero,
         usdAmount,
         fakeToken.address,
@@ -105,9 +109,7 @@ describe('Security checks', function () {
         blockInfo.timestamp + 86400 * 365
       )
 
-      expect(createStreamTx).to.be.revertedWith(
-        'invalid payee or fundingAddress'
-      )
+      expect(createStreamTx).to.be.revertedWith('payee-or-funding-address-is-0')
     })
 
     it('createStream with unsupported token should revert', async function () {
@@ -115,7 +117,7 @@ describe('Security checks', function () {
 
       const blockInfo = await ethers.provider.getBlock('latest')
 
-      const createStreamTx = paymentStream.createStream(
+      const createStreamTx = paymentStreamFactory.createStream(
         payee.address,
         usdAmount,
         VSP_ADDRESS,
@@ -123,61 +125,20 @@ describe('Security checks', function () {
         blockInfo.timestamp + 86400 * 365
       )
 
-      expect(createStreamTx).to.be.revertedWith('Token not supported')
-    })
-
-    it("A Payer can't reuse someone eles' fundingAddress", async function () {
-      const [Payer, fundingAddress, payee, evilPayer, evilPayee, secondPayee] =
-        await ethers.getSigners()
-
-      const blockInfo = await ethers.provider.getBlock('latest')
-
-      await paymentStream
-        .connect(Payer)
-        .createStream(
-          payee.address,
-          usdAmount,
-          fakeToken.address,
-          fundingAddress.address,
-          blockInfo.timestamp + 86400 * 365
-        )
-
-      // evilPayer tries to reuse Payer' fundingAddress and tries routing funds to himself (evilPayee)
-      const createStreamTx = paymentStream
-        .connect(evilPayer)
-        .createStream(
-          evilPayee.address,
-          usdAmount,
-          fakeToken.address,
-          fundingAddress.address,
-          blockInfo.timestamp + 100
-        )
-
-      expect(createStreamTx).to.be.revertedWith('Not funding owner')
-
-      // Payer, on the other hand should still be able to reuse fundingAddress
-      // for funding one more stream
-      await paymentStream
-        .connect(Payer)
-        .createStream(
-          secondPayee.address,
-          usdAmount,
-          fakeToken.address,
-          fundingAddress.address,
-          blockInfo.timestamp + 86400 * 365
-        )
+      expect(createStreamTx).to.be.revertedWith('token-not-supported')
     })
   })
 
   describe('claim', function () {
     let streamId
+    let paymentStream
 
     before(async function () {
       const [fundingAddress, payee] = await ethers.getSigners()
 
       const blockInfo = await ethers.provider.getBlock('latest')
 
-      const createStreamTx = await paymentStream.createStream(
+      const createStreamTx = await paymentStreamFactory.createStream(
         payee.address,
         usdAmount, // usdAmount scaled up to 18 decimals
         fakeToken.address,
@@ -190,18 +151,22 @@ describe('Security checks', function () {
       const event = events.find(newEvent => newEvent.event === 'StreamCreated')
 
       streamId = event.args.id
+
+      const streamAddress = await paymentStreamFactory.getStream(streamId)
+
+      paymentStream = await ethers.getContractAt('PaymentStream', streamAddress)
     })
 
     it('Claiming on paused stream should revert', async function () {
       const [, payee] = await ethers.getSigners()
 
-      await paymentStream.pauseStream(streamId)
+      await paymentStream.pauseStream()
 
       const payeePaymentStream = await paymentStream.connect(payee)
 
-      const claimTx = payeePaymentStream.claim(streamId)
+      const claimTx = payeePaymentStream.claim()
 
-      expect(claimTx).to.be.revertedWith('Stream is paused')
+      expect(claimTx).to.be.revertedWith('stream-is-paused')
     })
 
     it('Claiming from non-payee should revert', async function () {
@@ -209,21 +174,22 @@ describe('Security checks', function () {
 
       const nonPayeePaymentStream = await paymentStream.connect(nonPayee)
 
-      const claimTx = nonPayeePaymentStream.claim(streamId)
+      const claimTx = nonPayeePaymentStream.claim()
 
-      expect(claimTx).to.be.revertedWith('Not payee')
+      expect(claimTx).to.be.revertedWith('not-payee')
     })
   })
 
   describe('Editing a stream', function () {
     let streamId
+    let paymentStream
 
     before(async function () {
       const [fundingAddress, payee] = await ethers.getSigners()
 
       const blockInfo = await ethers.provider.getBlock('latest')
 
-      const createStreamTx = await paymentStream.createStream(
+      const createStreamTx = await paymentStreamFactory.createStream(
         payee.address,
         usdAmount, // usdAmount scaled up to 18 decimals
         fakeToken.address,
@@ -236,38 +202,37 @@ describe('Security checks', function () {
       const event = events.find(newEvent => newEvent.event === 'StreamCreated')
 
       streamId = event.args.id
+
+      const streamAddress = await paymentStreamFactory.getStream(streamId)
+
+      paymentStream = await ethers.getContractAt('PaymentStream', streamAddress)
     })
 
     describe('delegatePausable', function () {
       it('Delegating to invalid address should revert', async function () {
         const check = paymentStream.delegatePausable(
-          streamId,
           ethers.constants.AddressZero
         )
 
-        expect(check).to.be.revertedWith('Invalid delegate')
+        expect(check).to.be.revertedWith('invalid-delegate')
       })
     })
 
     describe('updateFundingAddress', function () {
       it('Setting an invalid funding address should revert', async function () {
         const check = paymentStream.updateFundingAddress(
-          streamId,
           ethers.constants.AddressZero
         )
 
-        expect(check).to.be.revertedWith('newFundingAddress invalid')
+        expect(check).to.be.revertedWith('invalid-new-funding-address')
       })
     })
 
     describe('updatePayee', function () {
       it('Setting an invalid payee address should revert', async function () {
-        const check = paymentStream.updatePayee(
-          streamId,
-          ethers.constants.AddressZero
-        )
+        const check = paymentStream.updatePayee(ethers.constants.AddressZero)
 
-        expect(check).to.be.revertedWith('newPayee invalid')
+        expect(check).to.be.revertedWith('invalid-new-payee')
       })
     })
 
@@ -276,27 +241,29 @@ describe('Security checks', function () {
         const blockInfo = await ethers.provider.getBlock('latest')
 
         const check = paymentStream.updateFundingRate(
-          streamId,
           usdAmount,
           blockInfo.timestamp - 86400
         )
 
-        expect(check).to.be.revertedWith('End time is in the past')
+        expect(check).to.be.revertedWith('invalid-end-time')
       })
     })
 
     describe('updateSwapManager', function () {
       it('Setting 0 address should revert', async function () {
         expect(
-          paymentStream.updateSwapManager(
+          paymentStreamFactory.updateSwapManager(
             '0x0000000000000000000000000000000000000000'
           )
-        ).to.be.revertedWith('Invalid SwapManager address')
+        ).to.be.revertedWith('invalid-swap-manager-address')
       })
       it('Setting SwapManager address should emit an event', async function () {
-        expect(paymentStream.updateSwapManager(SWAP_MANAGER_ADDRESS))
-          .to.emit(paymentStream, 'SwapManagerUpdated')
-          .withArgs(SWAP_MANAGER_ADDRESS, SWAP_MANAGER_ADDRESS)
+        const NEW_SWAP_MANAGER_ADDRESS =
+          '0xC48ea9A2daA4d816e4c9333D6689C70070010174'
+
+        expect(paymentStreamFactory.updateSwapManager(NEW_SWAP_MANAGER_ADDRESS))
+          .to.emit(paymentStreamFactory, 'SwapManagerUpdated')
+          .withArgs(SWAP_MANAGER_ADDRESS, NEW_SWAP_MANAGER_ADDRESS)
       })
     })
   })

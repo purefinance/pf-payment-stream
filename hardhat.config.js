@@ -4,6 +4,7 @@ require('@nomiclabs/hardhat-waffle')
 require("@nomiclabs/hardhat-etherscan");
 require('hardhat-contract-sizer')
 require('hardhat-deploy')
+require("hardhat-gas-reporter");
 require("dotenv").config()
 
 // This is a sample Hardhat task. To learn how to create your own go to
@@ -40,7 +41,7 @@ module.exports = {
     },
     mainnet: {
       url: process.env.NODE_URL,
-      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      //accounts: [`0x${process.env.PRIVATE_KEY}`],
       chainId: 1
     }
   },
@@ -57,6 +58,9 @@ module.exports = {
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY
+  },
+  gasReporter: {
+    enabled: (process.env.REPORT_GAS) ? true : false
   }
 };
 
