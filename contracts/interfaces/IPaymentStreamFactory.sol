@@ -9,7 +9,7 @@ interface IPaymentStreamFactory {
 
   event StreamCreated(
     uint256 id,
-    address stream,
+    address indexed stream,
     address indexed payer,
     address indexed payee,
     uint256 usdAmount

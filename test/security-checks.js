@@ -1,7 +1,7 @@
 'use strict'
 
 const { expect } = require('chai')
-const { ethers, network } = require('hardhat')
+const { ethers } = require('hardhat')
 
 const SWAP_MANAGER_ADDRESS = '0xe382d9f2394A359B01006faa8A1864b8a60d2710'
 
@@ -17,17 +17,6 @@ describe('Security checks', function () {
   let fakeToken
 
   before(async function () {
-    await network.provider.request({
-      method: 'hardhat_reset',
-      params: [
-        {
-          forking: {
-            jsonRpcUrl: process.env.NODE_URL
-          }
-        }
-      ]
-    })
-
     const FakeERC20 = await ethers.getContractFactory('FakeERC20')
     fakeToken = await FakeERC20.deploy(ethers.utils.parseEther('1000000'))
 
@@ -167,6 +156,8 @@ describe('Security checks', function () {
       const claimTx = payeePaymentStream.claim()
 
       expect(claimTx).to.be.revertedWith('stream-is-paused')
+
+      await paymentStream.unpauseStream()
     })
 
     it('Claiming from non-payee should revert', async function () {
@@ -220,19 +211,25 @@ describe('Security checks', function () {
 
     describe('updateFundingAddress', function () {
       it('Setting an invalid funding address should revert', async function () {
-        const check = paymentStream.updateFundingAddress(
-          ethers.constants.AddressZero
-        )
-
-        expect(check).to.be.revertedWith('invalid-new-funding-address')
+        const currentFundingAddress = await paymentStream.fundingAddress()
+        expect(
+          paymentStream.updateFundingAddress(ethers.constants.AddressZero)
+        ).to.be.revertedWith('invalid-new-funding-address')
+        expect(
+          paymentStream.updateFundingAddress(currentFundingAddress)
+        ).to.be.revertedWith('same-new-funding-address')
       })
     })
 
     describe('updatePayee', function () {
       it('Setting an invalid payee address should revert', async function () {
-        const check = paymentStream.updatePayee(ethers.constants.AddressZero)
-
-        expect(check).to.be.revertedWith('invalid-new-payee')
+        const currentPayee = await paymentStream.payee()
+        expect(
+          paymentStream.updatePayee(ethers.constants.AddressZero)
+        ).to.be.revertedWith('invalid-new-payee')
+        expect(paymentStream.updatePayee(currentPayee)).to.be.revertedWith(
+          'same-new-payee'
+        )
       })
     })
 
@@ -256,6 +253,11 @@ describe('Security checks', function () {
             '0x0000000000000000000000000000000000000000'
           )
         ).to.be.revertedWith('invalid-swap-manager-address')
+      })
+      it('Setting the same address should revert', async function () {
+        expect(
+          paymentStreamFactory.updateSwapManager(SWAP_MANAGER_ADDRESS)
+        ).to.be.revertedWith('same-swap-manager-address')
       })
       it('Setting SwapManager address should emit an event', async function () {
         const NEW_SWAP_MANAGER_ADDRESS =

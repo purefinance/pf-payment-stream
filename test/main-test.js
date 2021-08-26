@@ -7,7 +7,9 @@ const { ethers, network } = require('hardhat')
 const SWAP_MANAGER_ADDRESS = '0xe382d9f2394A359B01006faa8A1864b8a60d2710'
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+const VSP_ADDRESS = '0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421'
 const DEX_UNISWAP = 0
+const DEX_SUSHISWAP = 1
 
 const usdAmount = ethers.utils.parseEther('100000')
 
@@ -34,9 +36,10 @@ describe('PaymentStream', function () {
 
     await Promise.all([fakeToken.deployed(), paymentStreamFactory.deployed()])
 
-    await paymentStreamFactory.addToken(fakeToken.address, DEX_UNISWAP, [
+    await paymentStreamFactory.addToken(fakeToken.address, DEX_SUSHISWAP, [
       USDC_ADDRESS,
-      WETH_ADDRESS
+      WETH_ADDRESS,
+      VSP_ADDRESS
     ])
   })
 
@@ -60,6 +63,7 @@ describe('PaymentStream', function () {
     const event = events.find(newEvent => newEvent.event === 'StreamCreated')
 
     expect(event.args.id).to.equal(0)
+    expect(await paymentStreamFactory.ours(event.args.stream)).to.equal(true)
   })
 
   it('Should get the first stream', async function () {
@@ -101,7 +105,24 @@ describe('PaymentStream', function () {
     ).to.be.revertedWith('not-stream-owner')
   })
 
+  it('Claiming before Oracle updates its first period should fail', async function () {
+    const [, payee] = await ethers.getSigners()
+
+    const stream = await getStream(0)
+
+    const payeePaymentStream = await stream.connect(payee)
+
+    const claimTx = payeePaymentStream.claim()
+
+    expect(claimTx).to.be.revertedWith('oracle-update-error')
+  })
+
   it('Should return the correct claimable amount', async function () {
+    await paymentStreamFactory.addToken(fakeToken.address, DEX_UNISWAP, [
+      USDC_ADDRESS,
+      WETH_ADDRESS
+    ])
+
     await network.provider.send('evm_increaseTime', [86400]) // +1 day
     await network.provider.send('evm_mine')
 
@@ -207,10 +228,16 @@ describe('PaymentStream', function () {
     const [, , , , newPayee] = await ethers.getSigners()
 
     const paymentStream = await getStream(0)
+    const oldPayee = await paymentStream.payee()
+    const oldBalance = await fakeToken.balanceOf(oldPayee)
 
     await paymentStream.updatePayee(newPayee.address)
 
+    const newBalance = await fakeToken.balanceOf(oldPayee)
+
     expect(await paymentStream.payee()).to.equal(newPayee.address)
+    expect(newBalance).to.be.gt(oldBalance)
+    expect(await paymentStream.claimable()).to.eq(0)
   })
 
   it('Sets new funding rate', async function () {
@@ -235,9 +262,13 @@ describe('PaymentStream', function () {
     expect(
       (await paymentStream.startTime()).add(await paymentStream.secs())
     ).to.equal(deadline)
+
+    expect(await paymentStream.claimable()).to.eq(0)
   })
 
   it('Payee should be able to claim the full amount after the deadline is expired', async function () {
+    const [, , , , currentPayee, newPayee] = await ethers.getSigners()
+
     await network.provider.send('evm_increaseTime', [86400 * 8]) // +8 day
     await network.provider.send('evm_mine')
 
@@ -249,5 +280,21 @@ describe('PaymentStream', function () {
     const expectedClaimable = (await paymentStream.usdAmount()).sub(claimed)
 
     expect(expectedClaimable).to.equal(claimable)
+
+    const payeePaymentStream = paymentStream.connect(currentPayee)
+
+    await payeePaymentStream.claim()
+
+    expect(await paymentStream.claimable()).to.eq(0)
+
+    const blockInfo = await ethers.provider.getBlock('latest')
+
+    // when claimable is 0, updating the payee should not revert
+    await paymentStream.updatePayee(newPayee.address)
+    // when claimable is 0, updating the funding rate should not revert
+    await paymentStream.updateFundingRate(
+      usdAmount,
+      blockInfo.timestamp + 86400
+    )
   })
 })

@@ -2,14 +2,10 @@
 pragma solidity ^0.8.3;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 import "./interfaces/IPaymentStream.sol";
 import "./interfaces/IPaymentStreamFactory.sol";
-import "./interfaces/ISwapManager.sol";
 
 contract PaymentStream is AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
@@ -136,6 +132,9 @@ contract PaymentStream is AccessControl, IPaymentStream {
   function updatePayee(address _newPayee) external override onlyPayer {
     require(_newPayee != address(0), "invalid-new-payee");
     require(_newPayee != payee, "same-new-payee");
+
+    _claim();
+
     emit PayeeUpdated(payee, _newPayee);
     payee = _newPayee;
   }
@@ -170,12 +169,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
   {
     require(_endTime > block.timestamp, "invalid-end-time");
 
-    uint256 _accumulated = _claimable();
-    uint256 _amount = factory.usdToTokenAmount(token, _accumulated);
-
-    // if we get _amount = 0 it means Payer called this function
-    // before the oracles had time to update for the first time
-    require(_amount > 0, "oracle-update-error");
+    _claim();
 
     usdAmount = _usdAmount;
     startTime = block.timestamp;
@@ -183,9 +177,6 @@ contract PaymentStream is AccessControl, IPaymentStream {
     usdPerSec = _usdAmount / secs;
     claimed = 0;
 
-    IERC20(token).safeTransferFrom(fundingAddress, payee, _amount);
-
-    emit Claimed(_accumulated, _amount);
     emit StreamUpdated(_usdAmount, _endTime);
   }
 
@@ -194,7 +185,22 @@ contract PaymentStream is AccessControl, IPaymentStream {
    */
   function claim() external override onlyPayee {
     require(!paused, "stream-is-paused");
+    _claim();
+  }
 
+  function claimable() external view override returns (uint256) {
+    return _claimable();
+  }
+
+  /**
+   * @notice Helper function, gets the accrued drip of given stream converted into target token amount
+   * @return uint256 amount in target token
+   */
+  function claimableToken() external view override returns (uint256) {
+    return factory.usdToTokenAmount(token, _claimable());
+  }
+
+  function _claim() internal {
     factory.updateOracles(token);
 
     uint256 _accumulated = _claimable();
@@ -212,18 +218,6 @@ contract PaymentStream is AccessControl, IPaymentStream {
     IERC20(token).safeTransferFrom(fundingAddress, payee, _amount);
 
     emit Claimed(_accumulated, _amount);
-  }
-
-  function claimable() external view override returns (uint256) {
-    return _claimable();
-  }
-
-  /**
-   * @notice Helper function, gets the accrued drip of given stream converted into target token amount
-   * @return uint256 amount in target token
-   */
-  function claimableToken() external view override returns (uint256) {
-    return factory.usdToTokenAmount(token, _claimable());
   }
 
   /**

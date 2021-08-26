@@ -2,9 +2,11 @@
 
 pragma solidity ^0.8.3;
 
-import "./PaymentStream.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IPaymentStreamFactory.sol";
 import "./interfaces/ISwapManager.sol";
+import "./PaymentStream.sol";
 
 contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
   address[] private allStreams;
@@ -105,6 +107,7 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
     }
 
     _tokenSupport.path = _path;
+    _tokenSupport.dex = _dex;
 
     supportedTokens[_tokenAddress] = _tokenSupport;
 
@@ -128,8 +131,9 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
     // _amount is 18 decimals
     // some stablecoins like USDC has 6 decimals, so we scale the amount accordingly
 
-    _amount = _amount / 10**(18 - ERC20(_tokenSupport.path[0]).decimals());
-
+    _amount =
+      _amount /
+      10**(18 - IERC20Metadata(_tokenSupport.path[0]).decimals());
     uint256 _len = _tokenSupport.path.length - 1;
 
     for (uint256 i = 0; i < _len; i++) {

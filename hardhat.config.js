@@ -36,8 +36,9 @@ module.exports = {
   networks: {
     hardhat: {
       forking: {
-        url: process.env.NODE_URL
-      }
+        url: process.env.NODE_URL,
+      },
+      initialBaseFeePerGas: 0
     },
     mainnet: {
       url: process.env.NODE_URL,
