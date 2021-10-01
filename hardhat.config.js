@@ -38,6 +38,9 @@ module.exports = {
       forking: {
         url: process.env.NODE_URL,
       },
+      accounts: {
+        mnemonic: process.env.MNEMONIC
+      },
       initialBaseFeePerGas: 0
     },
     mainnet: {
