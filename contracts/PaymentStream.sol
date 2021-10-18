@@ -85,6 +85,8 @@ contract PaymentStream is AccessControl, IPaymentStream {
     secs = _endTime - block.timestamp;
     usdPerSec = _usdAmount / secs;
 
+    require(usdPerSec > 0, "usd-per-sec-is-0");
+
     _setupRole(ADMIN_ROLE, _payer);
     _setRoleAdmin(PAUSABLE_ROLE, ADMIN_ROLE);
   }
