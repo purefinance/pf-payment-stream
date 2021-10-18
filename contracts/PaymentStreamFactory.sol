@@ -126,6 +126,7 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
     override
     returns (uint256 lastPrice)
   {
+    require(supportedTokens[_token].path.length > 1, "token-not-supported");
     TokenSupport memory _tokenSupport = supportedTokens[_token];
 
     // _amount is 18 decimals
