@@ -10,9 +10,10 @@ import "./interfaces/IPaymentStreamFactory.sol";
 contract PaymentStream is AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
 
-  address public payer;
+  address public immutable payer;
+  address public immutable token;
+
   address public payee;
-  address public token;
   address public fundingAddress;
 
   uint256 public usdAmount;
