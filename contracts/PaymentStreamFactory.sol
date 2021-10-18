@@ -1,6 +1,5 @@
 //SPDX-License-Identifier: MIT
-
-pragma solidity 0.8.3;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -9,6 +8,9 @@ import "./interfaces/ISwapManager.sol";
 import "./PaymentStream.sol";
 
 contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
+  string public constant VERSION = "1.0.1";
+  string public constant NAME = "PaymentStreamFactory";
+
   address[] private allStreams;
   mapping(address => bool) private isOurs;
 

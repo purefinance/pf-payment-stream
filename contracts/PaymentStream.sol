@@ -1,14 +1,19 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.3;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interfaces/IPaymentStream.sol";
-import "./interfaces/IPaymentStreamFactory.sol";
+import "./interfaces/IPaymentStreamFactoryMetadata.sol";
 
 contract PaymentStream is AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
+
+  // solhint-disable var-name-mixedcase
+  string public VERSION;
+  // solhint-enable var-name-mixedcase
+  string public constant NAME = "PaymentStream";
 
   address public immutable payer;
   address public immutable token;
@@ -24,7 +29,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
 
   bool public paused;
 
-  IPaymentStreamFactory public immutable factory;
+  IPaymentStreamFactoryMetadata public immutable factory;
 
   bytes32 private constant ADMIN_ROLE = keccak256(abi.encodePacked("admin"));
   bytes32 private constant PAUSABLE_ROLE =
@@ -66,7 +71,9 @@ contract PaymentStream is AccessControl, IPaymentStream {
     address _fundingAddress,
     uint256 _endTime
   ) {
-    factory = IPaymentStreamFactory(_msgSender());
+    factory = IPaymentStreamFactoryMetadata(_msgSender());
+
+    VERSION = factory.VERSION();
 
     require(_endTime > block.timestamp, "invalid-end-time");
     require(_payee != _fundingAddress, "payee-is-funding-address");
