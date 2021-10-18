@@ -191,7 +191,6 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
    * @notice Returns address of the stream located at given id
    */
   function getStream(uint256 _idx) external view override returns (address) {
-    require(_idx < allStreams.length, "index-exceeds-list-length");
     return allStreams[_idx];
   }
 }
