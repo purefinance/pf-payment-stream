@@ -134,6 +134,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
   function updatePayee(address _newPayee) external override onlyPayer {
     require(_newPayee != address(0), "invalid-new-payee");
     require(_newPayee != payee, "same-new-payee");
+    require(_newPayee != fundingAddress, "new-payee-is-funding-address");
 
     _claim();
 
@@ -152,6 +153,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
   {
     require(_newFundingAddress != address(0), "invalid-new-funding-address");
     require(_newFundingAddress != fundingAddress, "same-new-funding-address");
+    require(_newFundingAddress != payee, "new-funding-address-is-payee");
 
     emit FundingAddressUpdated(fundingAddress, _newFundingAddress);
 
