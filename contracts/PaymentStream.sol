@@ -1,18 +1,24 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.3;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interfaces/IPaymentStream.sol";
-import "./interfaces/IPaymentStreamFactory.sol";
+import "./interfaces/IPaymentStreamFactoryMetadata.sol";
 
 contract PaymentStream is AccessControl, IPaymentStream {
   using SafeERC20 for IERC20;
 
-  address public payer;
+  // solhint-disable var-name-mixedcase
+  string public VERSION;
+  // solhint-enable var-name-mixedcase
+  string public constant NAME = "PaymentStream";
+
+  address public immutable payer;
+  address public immutable token;
+
   address public payee;
-  address public token;
   address public fundingAddress;
 
   uint256 public usdAmount;
@@ -23,7 +29,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
 
   bool public paused;
 
-  IPaymentStreamFactory public immutable factory;
+  IPaymentStreamFactoryMetadata public immutable factory;
 
   bytes32 private constant ADMIN_ROLE = keccak256(abi.encodePacked("admin"));
   bytes32 private constant PAUSABLE_ROLE =
@@ -65,7 +71,9 @@ contract PaymentStream is AccessControl, IPaymentStream {
     address _fundingAddress,
     uint256 _endTime
   ) {
-    factory = IPaymentStreamFactory(_msgSender());
+    factory = IPaymentStreamFactoryMetadata(_msgSender());
+
+    VERSION = factory.VERSION();
 
     require(_endTime > block.timestamp, "invalid-end-time");
     require(_payee != _fundingAddress, "payee-is-funding-address");
@@ -84,6 +92,8 @@ contract PaymentStream is AccessControl, IPaymentStream {
     startTime = block.timestamp;
     secs = _endTime - block.timestamp;
     usdPerSec = _usdAmount / secs;
+
+    require(usdPerSec > 0, "usd-per-sec-is-0");
 
     _setupRole(ADMIN_ROLE, _payer);
     _setRoleAdmin(PAUSABLE_ROLE, ADMIN_ROLE);
@@ -132,6 +142,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
   function updatePayee(address _newPayee) external override onlyPayer {
     require(_newPayee != address(0), "invalid-new-payee");
     require(_newPayee != payee, "same-new-payee");
+    require(_newPayee != fundingAddress, "new-payee-is-funding-address");
 
     _claim();
 
@@ -150,6 +161,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
   {
     require(_newFundingAddress != address(0), "invalid-new-funding-address");
     require(_newFundingAddress != fundingAddress, "same-new-funding-address");
+    require(_newFundingAddress != payee, "new-funding-address-is-payee");
 
     emit FundingAddressUpdated(fundingAddress, _newFundingAddress);
 

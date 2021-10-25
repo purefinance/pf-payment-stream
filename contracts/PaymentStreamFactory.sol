@@ -1,6 +1,5 @@
 //SPDX-License-Identifier: MIT
-
-pragma solidity 0.8.3;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -9,6 +8,9 @@ import "./interfaces/ISwapManager.sol";
 import "./PaymentStream.sol";
 
 contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
+  string public constant VERSION = "1.0.1";
+  string public constant NAME = "PaymentStreamFactory";
+
   address[] private allStreams;
   mapping(address => bool) private isOurs;
 
@@ -126,6 +128,7 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
     override
     returns (uint256 lastPrice)
   {
+    require(supportedTokens[_token].path.length > 1, "token-not-supported");
     TokenSupport memory _tokenSupport = supportedTokens[_token];
 
     // _amount is 18 decimals
@@ -190,7 +193,6 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
    * @notice Returns address of the stream located at given id
    */
   function getStream(uint256 _idx) external view override returns (address) {
-    require(_idx < allStreams.length, "index-exceeds-list-length");
     return allStreams[_idx];
   }
 }

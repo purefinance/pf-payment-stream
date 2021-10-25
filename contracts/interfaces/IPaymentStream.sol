@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.3;
+pragma solidity 0.8.9;
 
 interface IPaymentStream {
   event Claimed(uint256 usdAmount, uint256 tokenAmount);
