@@ -3,27 +3,33 @@ pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
+import "@chainlink/contracts/src/v0.8/Denominations.sol";
 import "./interfaces/IPaymentStreamFactory.sol";
-import "./interfaces/ISwapManager.sol";
 import "./PaymentStream.sol";
 
 contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
-  string public constant VERSION = "1.0.1";
+  string public constant VERSION = "1.0.2";
   string public constant NAME = "PaymentStreamFactory";
+
+  address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
   address[] private allStreams;
   mapping(address => bool) private isOurs;
 
-  uint256 private constant TWAP_PERIOD = 1 hours;
+  // Chainlink Feed Registry: https://docs.chain.link/docs/feed-registry/
+  // Aggregates all supported price feeds in one handy factory contract
+  // Automatically supported TOKEN/USD and TOKEN/ETH pairs: https://docs.chain.link/docs/ethereum-addresses/
+  FeedRegistryInterface public feedRegistry;
 
-  uint8 private constant MAX_PATH = 5;
+  // Some tokens like ETH or BTC have special addresses in the feed registry
+  // token address => token denomination in Feed Registry
+  mapping(address => address) public customFeedMapping;
 
-  ISwapManager public swapManager;
+  constructor(address _feedRegistry) {
+    feedRegistry = FeedRegistryInterface(_feedRegistry);
 
-  mapping(address => TokenSupport) public supportedTokens; // token address => TokenSupport
-
-  constructor(address _swapManager) {
-    swapManager = ISwapManager(_swapManager);
+    customFeedMapping[WETH] = Denominations.ETH;
   }
 
   /**
@@ -42,7 +48,10 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
     address _fundingAddress,
     uint256 _endTime
   ) external returns (address streamAddress) {
-    require(supportedTokens[_token].path.length > 1, "token-not-supported");
+    // Prevents the caller to create a Stream with an unsupported token
+    // In case a USD/TOKEN or ETH/TOKEN Pair doesn't exist
+    // This will revert with "Feed not found"
+    usdToTokenAmount(_token, _usdAmount);
 
     streamAddress = address(
       new PaymentStream(
@@ -68,52 +77,32 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
   }
 
   /**
-   * @notice Updates Swap Manager contract address
-   * @dev Only contract owner can change swapManager
-   * @param _newAddress address of new Swap Manager instance
+   * @notice Updates Chainlink FeedRegistry contract address
+   * @dev Only contract owner can change feedRegistry
+   * @param _newAddress address of new Chainlink FeedRegistry instance
    */
-  function updateSwapManager(address _newAddress) external override onlyOwner {
-    require(_newAddress != address(0), "invalid-swap-manager-address");
-    require(_newAddress != address(swapManager), "same-swap-manager-address");
+  function updateFeedRegistry(address _newAddress) external override onlyOwner {
+    require(_newAddress != address(0), "invalid-feed-registry-address");
+    require(_newAddress != address(feedRegistry), "same-feed-registry-address");
 
-    emit SwapManagerUpdated(address(swapManager), _newAddress);
-    swapManager = ISwapManager(_newAddress);
+    emit FeedRegistryUpdated(address(feedRegistry), _newAddress);
+    feedRegistry = FeedRegistryInterface(_newAddress);
   }
 
   /**
-   * @notice If caller is contract owner it adds (or updates) Oracle price feed for given token
-   * @param _tokenAddress address of the ERC20 token to add support to
-   * @param _dex ID for choosing the DEX where prices will be retrieved (0 = Uniswap v2, 1 = Sushiswap)
-   * @param _path path of tokens to reach a _tokenAddress from a USD stablecoin (e.g: [ USDC, WETH, VSP ])
+   * @notice Defines a custom mapping for token denominations in the Feed Registry
+   * @param _token address of the ERC20 token
+   * @param _denomination the denomination address that the feed registry uses for _token
    */
-  function addToken(
-    address _tokenAddress,
-    uint8 _dex,
-    address[] memory _path
-  ) external override onlyOwner {
-    TokenSupport memory _tokenSupport;
+  function updateCustomFeedMapping(address _token, address _denomination)
+    external
+    onlyOwner
+  {
+    require(_denomination != address(0), "invalid-custom-feed-map");
+    require(_denomination != customFeedMapping[_token], "same-custom-feed-map");
 
-    uint256 _len = _path.length;
-
-    require(_len > 1 && _len <= MAX_PATH, "invalid-path-length");
-
-    _len--;
-
-    for (uint256 i = 0; i < _len; i++) {
-      swapManager.createOrUpdateOracle(
-        _path[i],
-        _path[i + 1],
-        TWAP_PERIOD,
-        _dex
-      );
-    }
-
-    _tokenSupport.path = _path;
-    _tokenSupport.dex = _dex;
-
-    supportedTokens[_tokenAddress] = _tokenSupport;
-
-    emit TokenAdded(_tokenAddress);
+    customFeedMapping[_token] = _denomination;
+    emit CustomFeedMappingUpdated(_token, _denomination);
   }
 
   /**
@@ -123,56 +112,29 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
    * @return lastPrice target token amount
    */
   function usdToTokenAmount(address _token, uint256 _amount)
-    external
+    public
     view
     override
     returns (uint256 lastPrice)
   {
-    require(supportedTokens[_token].path.length > 1, "token-not-supported");
-    TokenSupport memory _tokenSupport = supportedTokens[_token];
-
-    // _amount is 18 decimals
-    // some stablecoins like USDC has 6 decimals, so we scale the amount accordingly
-
-    _amount =
-      _amount /
-      10**(18 - IERC20Metadata(_tokenSupport.path[0]).decimals());
-    uint256 _len = _tokenSupport.path.length - 1;
-
-    for (uint256 i = 0; i < _len; i++) {
-      (uint256 amountOut, ) =
-        swapManager.consultForFree(
-          _tokenSupport.path[i],
-          _tokenSupport.path[i + 1],
-          (i == 0) ? _amount : lastPrice,
-          TWAP_PERIOD,
-          _tokenSupport.dex
-        );
-      lastPrice = amountOut;
+    // tries a direct _token -> USD pair first
+    try
+      feedRegistry.getFeed(_tokenDenomination(_token), Denominations.USD)
+    returns (AggregatorV2V3Interface) {
+      uint256 _quote = _getQuote(_token, Denominations.USD);
+      lastPrice =
+        ((_amount * 1e18) / _quote) /
+        10**(18 - IERC20Metadata(_token).decimals());
+    } catch {
+      // If getFeed reverts, uses token/ETH/usd route
+      // If a feed doesn't exist for _token/ETH, it will revert with "Feed not found"
+      uint256 _ethQuote = _getQuote(_token, Denominations.ETH);
+      uint256 _ethUsdQuote = _getQuote(Denominations.ETH, Denominations.USD);
+      uint256 _amountInETH = (_amount * 1e18) / _ethUsdQuote;
+      lastPrice =
+        ((_amountInETH * 1e18) / _ethQuote) /
+        10**(18 - IERC20Metadata(_token).decimals());
     }
-  }
-
-  /**
-   * @notice Updates price oracles for a given token
-   * @param _token address of target token
-   */
-  function updateOracles(address _token) external override {
-    TokenSupport memory _tokenSupport = supportedTokens[_token];
-
-    uint256 _len = _tokenSupport.path.length - 1;
-
-    address[] memory _oracles = new address[](_len);
-
-    for (uint256 i = 0; i < _len; i++) {
-      _oracles[i] = swapManager.getOracle(
-        _tokenSupport.path[i],
-        _tokenSupport.path[i + 1],
-        TWAP_PERIOD,
-        _tokenSupport.dex
-      );
-    }
-
-    swapManager.updateOracles(_oracles);
   }
 
   /**
@@ -194,5 +156,25 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
    */
   function getStream(uint256 _idx) external view override returns (address) {
     return allStreams[_idx];
+  }
+
+  function _getQuote(address _base, address _quote)
+    internal
+    view
+    returns (uint256)
+  {
+    (, int256 _price, , , ) =
+      feedRegistry.latestRoundData(_tokenDenomination(_base), _quote);
+
+    // USD decimals is 8 in ChainLink, scales it up to 18 decimals
+    _price = (_quote == Denominations.USD) ? _price * 1e10 : _price;
+    return uint256(_price);
+  }
+
+  function _tokenDenomination(address _token) internal view returns (address) {
+    return
+      (customFeedMapping[_token] == address(0))
+        ? _token
+        : customFeedMapping[_token];
   }
 }

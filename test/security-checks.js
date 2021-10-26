@@ -3,13 +3,10 @@
 const { expect } = require('chai')
 const { ethers } = require('hardhat')
 
-const SWAP_MANAGER_ADDRESS = '0xe382d9f2394A359B01006faa8A1864b8a60d2710'
-
-const DEX_UNISWAP = 0
-
+const FEED_REGISTRY_ADDRESS = '0x47Fb2585D2C56Fe188D0E6ec628a38b74fCeeeDf'
 const VSP_ADDRESS = '0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421'
-const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+const WBTC_ADDRESS = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599'
+
 const usdAmount = ethers.utils.parseEther('100000')
 
 describe('Security checks', function () {
@@ -24,16 +21,16 @@ describe('Security checks', function () {
       'PaymentStreamFactory'
     )
     paymentStreamFactory = await PaymentStreamFactory.deploy(
-      SWAP_MANAGER_ADDRESS
+      FEED_REGISTRY_ADDRESS
     )
 
     await Promise.all([fakeToken.deployed(), paymentStreamFactory.deployed()])
 
-    await paymentStreamFactory.addToken(fakeToken.address, DEX_UNISWAP, [
-      USDC_ADDRESS,
-      WETH_ADDRESS,
+    // Pretends that our deployed fake token is VSP
+    await paymentStreamFactory.updateCustomFeedMapping(
+      fakeToken.address,
       VSP_ADDRESS
-    ])
+    )
   })
 
   describe('createStream', function () {
@@ -109,12 +106,12 @@ describe('Security checks', function () {
       const createStreamTx = paymentStreamFactory.createStream(
         payee.address,
         usdAmount,
-        VSP_ADDRESS,
+        WBTC_ADDRESS,
         fundingAddress.address,
         blockInfo.timestamp + 86400 * 365
       )
 
-      expect(createStreamTx).to.be.revertedWith('token-not-supported')
+      expect(createStreamTx).to.be.revertedWith('Feed not found')
     })
   })
 
@@ -246,26 +243,28 @@ describe('Security checks', function () {
       })
     })
 
-    describe('updateSwapManager', function () {
+    describe('updateFeedRegistry', function () {
       it('Setting 0 address should revert', async function () {
         expect(
-          paymentStreamFactory.updateSwapManager(
+          paymentStreamFactory.updateFeedRegistry(
             '0x0000000000000000000000000000000000000000'
           )
-        ).to.be.revertedWith('invalid-swap-manager-address')
+        ).to.be.revertedWith('invalid-feed-registry-address')
       })
       it('Setting the same address should revert', async function () {
         expect(
-          paymentStreamFactory.updateSwapManager(SWAP_MANAGER_ADDRESS)
-        ).to.be.revertedWith('same-swap-manager-address')
+          paymentStreamFactory.updateFeedRegistry(FEED_REGISTRY_ADDRESS)
+        ).to.be.revertedWith('same-feed-registry-address')
       })
       it('Setting SwapManager address should emit an event', async function () {
-        const NEW_SWAP_MANAGER_ADDRESS =
-          '0xC48ea9A2daA4d816e4c9333D6689C70070010174'
+        const NEW_FEED_REGISTRY_ADDRESS =
+          '0xAa7F6f7f507457a1EE157fE97F6c7DB2BEec5cD0'
 
-        expect(paymentStreamFactory.updateSwapManager(NEW_SWAP_MANAGER_ADDRESS))
-          .to.emit(paymentStreamFactory, 'SwapManagerUpdated')
-          .withArgs(SWAP_MANAGER_ADDRESS, NEW_SWAP_MANAGER_ADDRESS)
+        expect(
+          paymentStreamFactory.updateFeedRegistry(NEW_FEED_REGISTRY_ADDRESS)
+        )
+          .to.emit(paymentStreamFactory, 'FeedRegistryUpdated')
+          .withArgs(FEED_REGISTRY_ADDRESS, NEW_FEED_REGISTRY_ADDRESS)
       })
     })
   })
