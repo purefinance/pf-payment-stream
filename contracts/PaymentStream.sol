@@ -93,7 +93,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
     secs = _endTime - block.timestamp;
     usdPerSec = _usdAmount / secs;
 
-    require(usdPerSec > 0, "usd-per-sec-is-0");
+    require(usdPerSec != 0, "usd-per-sec-is-0");
 
     _setupRole(ADMIN_ROLE, _payer);
     _setRoleAdmin(PAUSABLE_ROLE, ADMIN_ROLE);
@@ -213,17 +213,11 @@ contract PaymentStream is AccessControl, IPaymentStream {
   }
 
   function _claim() internal {
-    factory.updateOracles(token);
-
     uint256 _accumulated = _claimable();
 
     if (_accumulated == 0) return;
 
     uint256 _amount = factory.usdToTokenAmount(token, _accumulated);
-
-    // if we get _amount = 0 it means payee called this function
-    // before the oracles had time to update for the first time
-    require(_amount > 0, "oracle-update-error");
 
     claimed += _accumulated;
 

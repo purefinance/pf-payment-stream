@@ -4,12 +4,7 @@ const { expect } = require('chai')
 const { ethToUsd } = require('../utils/misc')
 const { ethers, network } = require('hardhat')
 
-const SWAP_MANAGER_ADDRESS = '0xe382d9f2394A359B01006faa8A1864b8a60d2710'
-const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
-const VSP_ADDRESS = '0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421'
-const DEX_UNISWAP = 0
-const DEX_SUSHISWAP = 1
+const FEED_REGISTRY_ADDRESS = '0x47Fb2585D2C56Fe188D0E6ec628a38b74fCeeeDf'
 
 const usdAmount = ethers.utils.parseEther('100000')
 
@@ -31,16 +26,16 @@ describe('PaymentStream', function () {
       'PaymentStreamFactory'
     )
     paymentStreamFactory = await PaymentStreamFactory.deploy(
-      SWAP_MANAGER_ADDRESS
+      FEED_REGISTRY_ADDRESS
     )
 
     await Promise.all([fakeToken.deployed(), paymentStreamFactory.deployed()])
 
-    await paymentStreamFactory.addToken(fakeToken.address, DEX_SUSHISWAP, [
-      USDC_ADDRESS,
-      WETH_ADDRESS,
-      VSP_ADDRESS
-    ])
+    // Pretends that our deployed fake token is ETH (wETH)
+    await paymentStreamFactory.updateCustomFeedMapping(
+      fakeToken.address,
+      '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+    )
   })
 
   it('Should create first stream', async function () {
@@ -105,30 +100,11 @@ describe('PaymentStream', function () {
     ).to.be.revertedWith('not-stream-owner')
   })
 
-  it('Claiming before Oracle updates its first period should fail', async function () {
-    const [, payee] = await ethers.getSigners()
-
-    const stream = await getStream(0)
-
-    const payeePaymentStream = await stream.connect(payee)
-
-    const claimTx = payeePaymentStream.claim()
-
-    expect(claimTx).to.be.revertedWith('oracle-update-error')
-  })
-
   it('Should return the correct claimable amount', async function () {
-    await paymentStreamFactory.addToken(fakeToken.address, DEX_UNISWAP, [
-      USDC_ADDRESS,
-      WETH_ADDRESS
-    ])
-
     await network.provider.send('evm_increaseTime', [86400]) // +1 day
     await network.provider.send('evm_mine')
 
     const paymentStream = await getStream(0)
-
-    await paymentStreamFactory.updateOracles(fakeToken.address)
 
     const claimable = await paymentStream.claimable()
     const claimableToken = await paymentStream.claimableToken()

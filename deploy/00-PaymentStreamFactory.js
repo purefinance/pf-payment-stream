@@ -1,7 +1,7 @@
 const name = 'PaymentStreamFactory'
-const version = 'v1.0.1'
+const version = 'v1.0.2'
 
-const SWAP_MANAGER_ADDRESS = '0xe382d9f2394A359B01006faa8A1864b8a60d2710'
+const FEED_REGISTRY_ADDRESS = '0x47Fb2585D2C56Fe188D0E6ec628a38b74fCeeeDf'
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
   const { deploy } = deployments
@@ -9,7 +9,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   await deploy(name, {
     from: deployer,
     log: true,
-    args: [SWAP_MANAGER_ADDRESS]
+    args: [FEED_REGISTRY_ADDRESS]
   })
 
   return true
