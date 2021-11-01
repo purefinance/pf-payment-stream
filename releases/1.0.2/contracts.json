@@ -1,0 +1,8 @@
+{
+    "version": "1.0.2",
+    "networks": {
+      "mainnet": {
+        "PaymentStreamFactory": "0xf47853220BF59C682CCBd28e7cFF4D4E603a4Ca6"
+      }
+    }
+  }
