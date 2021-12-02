@@ -26,6 +26,9 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
   // token address => token denomination in Feed Registry
   mapping(address => address) public customFeedMapping;
 
+  // Staleness tolerance to reject quote from ChainLink
+  uint256 public stalenessTolerance = 24 hours;
+
   constructor(address _feedRegistry) {
     feedRegistry = FeedRegistryInterface(_feedRegistry);
 
@@ -106,6 +109,16 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
   }
 
   /**
+   * @notice Defines a staleness tolerance for ChainLink price quote
+   * It can be set to 0 to recover the drip
+   * @param _newTolerance new tolerance range in seconds
+   */
+  function updateStalenessTolerance(uint256 _newTolerance) external onlyOwner {
+    emit StalenessToleranceUpdated(stalenessTolerance, _newTolerance);
+    stalenessTolerance = _newTolerance;
+  }
+
+  /**
    * @notice Converts given amount in usd to target token amount using oracle
    * @param _token address of target token
    * @param _amount amount in USD (scaled to 18 decimals)
@@ -163,8 +176,16 @@ contract PaymentStreamFactory is IPaymentStreamFactory, Ownable {
     view
     returns (uint256)
   {
-    (, int256 _price, , , ) =
+    (, int256 _price, , uint256 _updatedAt, ) =
       feedRegistry.latestRoundData(_tokenDenomination(_base), _quote);
+
+    // If stalenessTolerance is set ( > 0)
+    // Reject quote from the oracle if it's outside time range
+    require(
+      (stalenessTolerance == 0 ||
+        (block.timestamp - _updatedAt <= stalenessTolerance)),
+      "stale-oracle"
+    );
 
     // USD decimals is 8 in ChainLink, scales it up to 18 decimals
     _price = (_quote == Denominations.USD) ? _price * 1e10 : _price;

@@ -36,6 +36,8 @@ describe('PaymentStream', function () {
       fakeToken.address,
       '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
     )
+
+    await paymentStreamFactory.updateStalenessTolerance(0)
   })
 
   it('Should create first stream', async function () {
@@ -242,10 +244,25 @@ describe('PaymentStream', function () {
     expect(await paymentStream.claimable()).to.eq(0)
   })
 
+  it('Payee should not be able to claim drip if the oracle is stale', async function () {
+    await network.provider.send('evm_increaseTime', [3600 * 2]) // +2 hours
+    await network.provider.send('evm_mine')
+
+    // Sets tolerance to 1 hour
+    await paymentStreamFactory.updateStalenessTolerance(3600)
+    const [, , , , currentPayee] = await ethers.getSigners()
+
+    const paymentStream = await getStream(0)
+    const payeePaymentStream = paymentStream.connect(currentPayee)
+
+    expect(payeePaymentStream.claim()).to.be.revertedWith('stale-oracle')
+    await paymentStreamFactory.updateStalenessTolerance(0)
+  })
+
   it('Payee should be able to claim the full amount after the deadline is expired', async function () {
     const [, , , , currentPayee, newPayee] = await ethers.getSigners()
 
-    await network.provider.send('evm_increaseTime', [86400 * 8]) // +8 day
+    await network.provider.send('evm_increaseTime', [86400 * 8]) // +8 days
     await network.provider.send('evm_mine')
 
     const paymentStream = await getStream(0)

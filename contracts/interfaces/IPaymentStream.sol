@@ -2,7 +2,7 @@
 pragma solidity 0.8.9;
 
 interface IPaymentStream {
-  event Claimed(uint256 usdAmount, uint256 tokenAmount);
+  event Claimed(uint256 usdAmount, uint256 tokenAmount, address indexed token);
   event StreamPaused();
   event StreamUnpaused();
   event StreamUpdated(uint256 usdAmount, uint256 endTime);
