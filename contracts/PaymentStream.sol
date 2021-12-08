@@ -223,7 +223,7 @@ contract PaymentStream is AccessControl, IPaymentStream {
 
     IERC20(token).safeTransferFrom(fundingAddress, payee, _amount);
 
-    emit Claimed(_accumulated, _amount);
+    emit Claimed(_accumulated, _amount, token);
   }
 
   /**

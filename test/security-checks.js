@@ -31,6 +31,8 @@ describe('Security checks', function () {
       fakeToken.address,
       VSP_ADDRESS
     )
+
+    await paymentStreamFactory.updateStalenessTolerance(0)
   })
 
   describe('createStream', function () {

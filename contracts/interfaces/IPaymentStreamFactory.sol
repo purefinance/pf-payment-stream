@@ -20,6 +20,8 @@ interface IPaymentStreamFactory {
     address indexed newFeedRegistry
   );
 
+  event StalenessToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
+
   function updateFeedRegistry(address newAddress) external;
 
   function usdToTokenAmount(address _token, uint256 _amount)
