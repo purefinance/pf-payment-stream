@@ -1,11 +1,12 @@
 node_modules
 
+.DS_Store
+
 #Hardhat files
 cache
 artifacts
 coverage
 coverage.json
 .env
-.DS_Store
-
+typechain-types/*
 deployments/localhost
