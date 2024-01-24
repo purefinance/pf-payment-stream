@@ -2,36 +2,27 @@
 pragma solidity 0.8.9;
 
 interface IPaymentStreamFactory {
-  event StreamCreated(
-    uint256 id,
-    address indexed stream,
-    address indexed payer,
-    address indexed payee,
-    uint256 usdAmount
-  );
+    event StreamCreated(
+        uint256 id,
+        address indexed stream,
+        address indexed payer,
+        address indexed payee,
+        uint256 usdAmount
+    );
 
-  event CustomFeedMappingUpdated(
-    address indexed token,
-    address indexed tokenDenomination
-  );
+    event CustomFeedMappingUpdated(address indexed token, address indexed tokenDenomination);
 
-  event FeedRegistryUpdated(
-    address indexed previousFeedRegistry,
-    address indexed newFeedRegistry
-  );
+    event FeedRegistryUpdated(address indexed previousFeedRegistry, address indexed newFeedRegistry);
 
-  event StalenessToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
+    event StalenessToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
 
-  function updateFeedRegistry(address newAddress) external;
+    function updateFeedRegistry(address newAddress) external;
 
-  function usdToTokenAmount(address _token, uint256 _amount)
-    external
-    view
-    returns (uint256);
+    function usdToTokenAmount(address _token, uint256 _amount) external view returns (uint256);
 
-  function ours(address _a) external view returns (bool);
+    function ours(address _a) external view returns (bool);
 
-  function getStreamsCount() external view returns (uint256);
+    function getStreamsCount() external view returns (uint256);
 
-  function getStream(uint256 _idx) external view returns (address);
+    function getStream(uint256 _idx) external view returns (address);
 }
