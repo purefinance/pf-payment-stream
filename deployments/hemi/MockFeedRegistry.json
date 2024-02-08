@@ -1,0 +1,228 @@
+{
+  "address": "0xeA437b70f29Bd7FD4Bb34e98DD5Be06c1aCAcCF7",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "FeedIsNotSupported",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "IncorrectQuote",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "getFeed",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "latestRoundData",
+      "outputs": [
+        {
+          "internalType": "uint80",
+          "name": "roundId",
+          "type": "uint80"
+        },
+        {
+          "internalType": "int256",
+          "name": "answer",
+          "type": "int256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "startedAt",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "updatedAt",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint80",
+          "name": "answeredInRound",
+          "type": "uint80"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        },
+        {
+          "internalType": "int256",
+          "name": "price",
+          "type": "int256"
+        }
+      ],
+      "name": "updatePrice",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xcb4e23823963b20c77553810962d266ad34a0a1e7dfc77253ca2106cd5d358cd",
+  "receipt": {
+    "to": null,
+    "from": "0x169e2FfC1c6b229b04E65A431434bF0e8eD9563d",
+    "contractAddress": "0xeA437b70f29Bd7FD4Bb34e98DD5Be06c1aCAcCF7",
+    "transactionIndex": 1,
+    "gasUsed": "244628",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x7931e41a136e7ac5805a74166258c6710d51c0ed3f5e34a384d3c8358b6b03d4",
+    "transactionHash": "0xcb4e23823963b20c77553810962d266ad34a0a1e7dfc77253ca2106cd5d358cd",
+    "logs": [],
+    "blockNumber": 310164,
+    "cumulativeGasUsed": "297129",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "20540cc51b65df89ece15d1bfd2ba1e0",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"FeedIsNotSupported\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"IncorrectQuote\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"getFeed\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"base\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"quote\",\"type\":\"address\"}],\"name\":\"latestRoundData\",\"outputs\":[{\"internalType\":\"uint80\",\"name\":\"roundId\",\"type\":\"uint80\"},{\"internalType\":\"int256\",\"name\":\"answer\",\"type\":\"int256\"},{\"internalType\":\"uint256\",\"name\":\"startedAt\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"updatedAt\",\"type\":\"uint256\"},{\"internalType\":\"uint80\",\"name\":\"answeredInRound\",\"type\":\"uint80\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"base\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"quote\",\"type\":\"address\"},{\"internalType\":\"int256\",\"name\":\"price\",\"type\":\"int256\"}],\"name\":\"updatePrice\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/test/MockFeedRegistry.sol\":\"MockFeedRegistry\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":1000},\"remappings\":[]},\"sources\":{\"@chainlink/contracts/src/v0.8/Denominations.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\nlibrary Denominations {\\n  address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;\\n  address public constant BTC = 0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB;\\n\\n  // Fiat currencies follow https://en.wikipedia.org/wiki/ISO_4217\\n  address public constant USD = address(840);\\n  address public constant GBP = address(826);\\n  address public constant EUR = address(978);\\n  address public constant JPY = address(392);\\n  address public constant KRW = address(410);\\n  address public constant CNY = address(156);\\n  address public constant AUD = address(36);\\n  address public constant CAD = address(124);\\n  address public constant CHF = address(756);\\n  address public constant ARS = address(32);\\n  address public constant PHP = address(608);\\n  address public constant NZD = address(554);\\n  address public constant SGD = address(702);\\n  address public constant NGN = address(566);\\n  address public constant ZAR = address(710);\\n  address public constant RUB = address(643);\\n  address public constant INR = address(356);\\n  address public constant BRL = address(986);\\n}\\n\",\"keccak256\":\"0xee406990d671c95993762c3ee15c77987ee35c3682357c419ff73747a728fc4d\",\"license\":\"MIT\"},\"contracts/test/MockFeedRegistry.sol\":{\"content\":\"//SPDX-License-Identifier: MIT\\n\\n/* Dummy FeedRegistry For testing purpose */\\n\\npragma solidity 0.8.9;\\n\\nimport {Denominations} from \\\"@chainlink/contracts/src/v0.8/Denominations.sol\\\";\\n\\ncontract MockFeedRegistry {\\n    struct PriceInfo {\\n        int256 answer;\\n        uint256 startedAt;\\n        uint256 updatedAt;\\n    }\\n\\n    // mock price. base => quote => price\\n    mapping(address => mapping(address => PriceInfo)) private _priceInfo;\\n    uint256 private _roundId;\\n    uint256 private _startTimestamp;\\n    error FeedIsNotSupported();\\n    error IncorrectQuote();\\n\\n    function latestRoundData(\\n        address base,\\n        address quote\\n    )\\n        external\\n        view\\n        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)\\n    {\\n        if (quote != Denominations.USD && quote != Denominations.ETH) revert IncorrectQuote();\\n\\n        PriceInfo memory _info = _priceInfo[base][quote];\\n        answer = _info.answer;\\n        if (answer == 0) revert FeedIsNotSupported();\\n\\n        roundId = uint80(_roundId);\\n        startedAt = _info.startedAt;\\n        updatedAt = _info.updatedAt;\\n        answeredInRound = roundId;\\n    }\\n\\n    function getFeed(address, address) external pure returns (address) {\\n        return address(0);\\n    }\\n\\n    function updatePrice(address base, address quote, int256 price) external {\\n        if (quote != Denominations.USD && quote != Denominations.ETH) revert IncorrectQuote();\\n        _priceInfo[base][quote].answer = price;\\n        _priceInfo[base][quote].updatedAt = block.timestamp;\\n        _roundId++;\\n    }\\n}\\n\",\"keccak256\":\"0xd808a51356b499006f2c45089c8ba5f956a4023f3faa9127162d4c8c4bfd3c84\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b50610379806100206000396000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c806355e2c99d14610046578063bcfd032d1461005b578063d2edb6dd146100aa575b600080fd5b610059610054366004610292565b6100d8565b005b61006e6100693660046102ce565b610175565b6040805169ffffffffffffffffffff968716815260208101959095528401929092526060830152909116608082015260a0015b60405180910390f35b6100c06100b83660046102ce565b600092915050565b6040516001600160a01b0390911681526020016100a1565b6001600160a01b0382166103481480159061011057506001600160a01b03821673eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee14155b1561012e576040516302b20a7160e41b815260040160405180910390fd5b6001600160a01b03838116600090815260208181526040808320938616835292905290812082815542600290910155600180549161016b83610301565b9190505550505050565b6000808080806001600160a01b038616610348148015906101b357506001600160a01b03861673eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee14155b156101d1576040516302b20a7160e41b815260040160405180910390fd5b6001600160a01b03808816600090815260208181526040808320938a168352928152908290208251606081018452815480825260018301549382019390935260029091015492810192909252945084610256576040517fd7fcc61a00000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b600154602082015160409092015190999598509096509450879392505050565b80356001600160a01b038116811461028d57600080fd5b919050565b6000806000606084860312156102a757600080fd5b6102b084610276565b92506102be60208501610276565b9150604084013590509250925092565b600080604083850312156102e157600080fd5b6102ea83610276565b91506102f860208401610276565b90509250929050565b600060001982141561033c577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b506001019056fea26469706673582212202a35d38e19b7fcf9f721bb52cc1d8961d11670fc4cceece3dea49fe8e92ee2f364736f6c63430008090033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100415760003560e01c806355e2c99d14610046578063bcfd032d1461005b578063d2edb6dd146100aa575b600080fd5b610059610054366004610292565b6100d8565b005b61006e6100693660046102ce565b610175565b6040805169ffffffffffffffffffff968716815260208101959095528401929092526060830152909116608082015260a0015b60405180910390f35b6100c06100b83660046102ce565b600092915050565b6040516001600160a01b0390911681526020016100a1565b6001600160a01b0382166103481480159061011057506001600160a01b03821673eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee14155b1561012e576040516302b20a7160e41b815260040160405180910390fd5b6001600160a01b03838116600090815260208181526040808320938616835292905290812082815542600290910155600180549161016b83610301565b9190505550505050565b6000808080806001600160a01b038616610348148015906101b357506001600160a01b03861673eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee14155b156101d1576040516302b20a7160e41b815260040160405180910390fd5b6001600160a01b03808816600090815260208181526040808320938a168352928152908290208251606081018452815480825260018301549382019390935260029091015492810192909252945084610256576040517fd7fcc61a00000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b600154602082015160409092015190999598509096509450879392505050565b80356001600160a01b038116811461028d57600080fd5b919050565b6000806000606084860312156102a757600080fd5b6102b084610276565b92506102be60208501610276565b9150604084013590509250925092565b600080604083850312156102e157600080fd5b6102ea83610276565b91506102f860208401610276565b90509250929050565b600060001982141561033c577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b506001019056fea26469706673582212202a35d38e19b7fcf9f721bb52cc1d8961d11670fc4cceece3dea49fe8e92ee2f364736f6c63430008090033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 4655,
+        "contract": "contracts/test/MockFeedRegistry.sol:MockFeedRegistry",
+        "label": "_priceInfo",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_struct(PriceInfo)4648_storage))"
+      },
+      {
+        "astId": 4657,
+        "contract": "contracts/test/MockFeedRegistry.sol:MockFeedRegistry",
+        "label": "_roundId",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 4659,
+        "contract": "contracts/test/MockFeedRegistry.sol:MockFeedRegistry",
+        "label": "_startTimestamp",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint256"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_int256": {
+        "encoding": "inplace",
+        "label": "int256",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_address,t_mapping(t_address,t_struct(PriceInfo)4648_storage))": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => mapping(address => struct MockFeedRegistry.PriceInfo))",
+        "numberOfBytes": "32",
+        "value": "t_mapping(t_address,t_struct(PriceInfo)4648_storage)"
+      },
+      "t_mapping(t_address,t_struct(PriceInfo)4648_storage)": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => struct MockFeedRegistry.PriceInfo)",
+        "numberOfBytes": "32",
+        "value": "t_struct(PriceInfo)4648_storage"
+      },
+      "t_struct(PriceInfo)4648_storage": {
+        "encoding": "inplace",
+        "label": "struct MockFeedRegistry.PriceInfo",
+        "members": [
+          {
+            "astId": 4643,
+            "contract": "contracts/test/MockFeedRegistry.sol:MockFeedRegistry",
+            "label": "answer",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_int256"
+          },
+          {
+            "astId": 4645,
+            "contract": "contracts/test/MockFeedRegistry.sol:MockFeedRegistry",
+            "label": "startedAt",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint256"
+          },
+          {
+            "astId": 4647,
+            "contract": "contracts/test/MockFeedRegistry.sol:MockFeedRegistry",
+            "label": "updatedAt",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_uint256"
+          }
+        ],
+        "numberOfBytes": "96"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}
