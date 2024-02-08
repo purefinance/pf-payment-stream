@@ -8,8 +8,12 @@
   "scripts": {
     "precompile": "hardhat clean",
     "compile": "hardhat compile",
+    "pretest": "npm run compile",
     "test": "hardhat test",
     "coverage": "npm run compile && npx hardhat coverage --temp artifacts",
+    "fork": "hardhat node --no-deploy",
+    "deploy": "hardhat deploy",
+    "deploy:hemi": "hardhat deploy --network hemi",
     "lint": "eslint ./test/*",
     "lint:fix": "eslint --fix ./test --ext .js",
     "solhint": "solhint './contracts/**/*.sol'",
