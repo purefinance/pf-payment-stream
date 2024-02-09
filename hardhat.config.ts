@@ -4,6 +4,8 @@ import 'hardhat-contract-sizer'
 import 'hardhat-deploy'
 import 'dotenv/config'
 
+import './tasks/create-release'
+
 let contractSizer
 
 if (process.env.ENABLE_CONTRACT_SIZER === 'true') {
@@ -46,12 +48,33 @@ const config: HardhatUserConfig = {
       accounts,
       saveDeployments: true,
     },
+    hemi: {
+      url: nodeUrl,
+      chainId: 11155222,
+      accounts,
+      saveDeployments: true,
+    },
+  },
+  sourcify: {
+    enabled: false,
+  },
+  etherscan: {
+    apiKey: {
+      mainnet: process.env.ETHERSCAN_API_KEY || '',
+      hemi: 'noApiKeyNeeded',
+    },
+    customChains: [
+      {
+        network: 'hemi',
+        chainId: 11155222,
+        urls: {
+          apiURL: 'http://external-testnet.bvmdev.cc/api',
+          browserURL: 'http://external-testnet.bvmdev.cc/',
+        },
+      },
+    ],
   },
 
-  etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY
-  },
-  
   namedAccounts: {
     deployer: process.env.DEPLOYER || 0,
   },
@@ -68,4 +91,3 @@ const config: HardhatUserConfig = {
 }
 
 export default config
-
