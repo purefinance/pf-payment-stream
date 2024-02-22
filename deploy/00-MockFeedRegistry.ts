@@ -1,4 +1,4 @@
-import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import { HardhatRuntimeEnvironment, HttpNetworkConfig } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 
 const name = 'MockFeedRegistry'
@@ -13,8 +13,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   if (hre.network.name === 'hemi') {
     const deployed = await deploy(name, { from: deployer, log: true, args: [] })
 
-    console.log('Verifying source code on the block explorer')
-    await run('verify:verify', { address: deployed.address, noCompile: true })
+    const networkConfig = hre.network.config as unknown as HttpNetworkConfig
+    if (!networkConfig.url.includes('localhost')) {
+      console.log('Verifying source code on the block explorer')
+      await run('verify:verify', { address: deployed.address, noCompile: true })
+    }
   } else {
     console.log('Skipped MockFeedRegistry deployment')
   }
