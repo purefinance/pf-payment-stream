@@ -20,7 +20,12 @@ const nodeUrl = process.env.NODE_URL || localhost
 
 const testMnemonic = 'test test test test test test test test test test test junk'
 const mnemonic = process.env.MNEMONIC || testMnemonic
-const accounts = { mnemonic }
+
+let accounts: { mnemonic: string } | [string] = { mnemonic }
+
+if (process.env.PRIVATE_KEY) {
+  accounts = [process.env.PRIVATE_KEY]
+}
 
 const config: HardhatUserConfig = {
   defaultNetwork: 'hardhat',
@@ -40,24 +45,25 @@ const config: HardhatUserConfig = {
     localhost: {
       url: localhost,
       accounts,
-      saveDeployments: true,
     },
+
     mainnet: {
       url: nodeUrl,
       chainId: 1,
       accounts,
-      saveDeployments: true,
     },
+
     hemi: {
       url: nodeUrl,
-      chainId: 11155222,
+      chainId: 743111,
       accounts,
-      saveDeployments: true,
     },
   },
+
   sourcify: {
     enabled: false,
   },
+
   etherscan: {
     apiKey: {
       mainnet: process.env.ETHERSCAN_API_KEY || '',
@@ -66,10 +72,10 @@ const config: HardhatUserConfig = {
     customChains: [
       {
         network: 'hemi',
-        chainId: 11155222,
+        chainId: 743111,
         urls: {
-          apiURL: 'http://external-testnet.bvmdev.cc/api',
-          browserURL: 'http://external-testnet.bvmdev.cc/',
+          apiURL: 'https://testnet.explorer.hemi.network/api',
+          browserURL: 'https://testnet.explorer.hemi.network',
         },
       },
     ],
