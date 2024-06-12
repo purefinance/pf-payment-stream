@@ -13,7 +13,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const { deployer } = await getNamedAccounts()
 
-  if (hre.network.name === 'hemi') {
+  if (hre.network.name === 'hemiSepolia') {
     feedRegistryAddress = (await deployments.get('MockFeedRegistry')).address
   }
 

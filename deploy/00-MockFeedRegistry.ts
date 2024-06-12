@@ -10,7 +10,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const { deployer } = await getNamedAccounts()
 
-  if (hre.network.name === 'hemi') {
+  if (hre.network.name === 'hemiSepolia') {
     const deployed = await deploy(name, { from: deployer, log: true, args: [] })
 
     const networkConfig = hre.network.config as unknown as HttpNetworkConfig
