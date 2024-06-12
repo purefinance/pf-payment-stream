@@ -13,7 +13,7 @@
     "coverage": "npm run compile && npx hardhat coverage --temp artifacts",
     "fork": "hardhat node --no-deploy",
     "deploy": "hardhat deploy",
-    "deploy:hemi": "hardhat deploy --network hemi",
+    "deploy:hemiSepolia": "hardhat deploy --network hemiSepolia",
     "create-release": "hardhat create-release",
     "lint": "eslint ./test/*",
     "lint:fix": "eslint --fix ./test --ext .js",
