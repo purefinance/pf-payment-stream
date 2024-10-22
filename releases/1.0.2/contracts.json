@@ -5,8 +5,8 @@
       "PaymentStreamFactory": "0xf47853220BF59C682CCBd28e7cFF4D4E603a4Ca6"
     },
     "hemiSepolia": {
-      "MockFeedRegistry": "0xeA437b70f29Bd7FD4Bb34e98DD5Be06c1aCAcCF7",
-      "PaymentStreamFactory": "0x5B458d71a353384087CE1c48dA405D9cab14d155"
+      "MockFeedRegistry": "0xB4887eB77ac0757883dF4FA99A1ae5CD088A28C2",
+      "PaymentStreamFactory": "0xc5F62E5a1bF204ba216a877b11E596FcA09760D4"
     }
   }
 }
